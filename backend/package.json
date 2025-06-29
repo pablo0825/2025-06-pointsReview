@@ -18,6 +18,7 @@
     "@types/helmet": "^0.0.48",
     "@types/http-errors": "^2.0.5",
     "@types/morgan": "^1.9.10",
+    "@types/multer": "^1.4.13",
     "@types/node": "^24.0.7",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
@@ -31,6 +32,7 @@
     "http-errors": "^2.0.0",
     "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
+    "multer": "^2.0.1",
     "path": "^0.12.7",
     "uuid": "^11.1.0",
     "zod": "^3.25.67"

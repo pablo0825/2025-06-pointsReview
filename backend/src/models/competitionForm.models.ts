@@ -48,6 +48,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
   }, //比賽名次
   awardOther: { type: String }, //其他名次
   date: { type: Date, required: true }, //申請時間
+  totalPoints: { type: Number, required: true, min: 0 }, //總點數
   students: {
     type: [StudentSchema],
     required: true,
@@ -56,7 +57,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
       message: "至少需要一位學生",
     },
   }, //申請學生
-  evidenceFileUrl: { type: String, required: true }, //佐證資料URL
+  evidenceFileUrl: { type: [String], required: true }, //佐證資料URL
   contact: { type: ContactSchema, required: true }, //主要聯絡人
   advisor: { type: String, required: true }, //指導老師
   status: {

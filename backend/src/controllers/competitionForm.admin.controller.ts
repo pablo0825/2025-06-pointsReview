@@ -485,7 +485,7 @@ export const unlockFormById = async (req: Request, res: Response) => {
       return;
     }
 
-    if (!form.isLocked) {
+    if (form.isLocked === false) {
       res.status(400).json({
         status: "fail",
         message: "表單未鎖定，無需解鎖",

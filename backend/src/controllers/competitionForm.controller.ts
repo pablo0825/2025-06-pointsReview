@@ -6,7 +6,6 @@ import {
 } from "../validators/competitionForm.schema";
 import { z } from "zod";
 import { getChangedFields } from "../utils/getChangedFields";
-import mongoose from "mongoose";
 
 //提交新表單
 export const submitForm = async (
@@ -14,22 +13,32 @@ export const submitForm = async (
   res: Response
 ): Promise<void> => {
   try {
+    const files = (req.files as Express.Multer.File[]) || [];
+
+    if (files.length > 10) {
+      res.status(400).json({ status: "fail", message: "最多上傳 10 個檔案" });
+      return;
+    }
+
+    // 儲存檔案 URL 到 DB 中
+    const fileUrls = files.map((file) => `/uploads/${file.filename}`);
+
     const validateDate = competitionFormSchema.parse(req.body);
 
     const newForm = await CompetitionForm.create({
       ...validateDate,
-      //expirationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), //設定7天到期
+      evidenceFiles: fileUrls,
+      history: [
+        {
+          type: "created",
+          timestamp: new Date(),
+          user: validateDate.contact?.name || "user",
+          detail: "使用者創建表單",
+        },
+      ],
     });
 
     //const editToken = newForm.editToken;
-
-    //更新歷史紀錄
-    newForm.history.push({
-      type: "created",
-      timestamp: new Date(),
-      user: validateDate.contact?.name || "user",
-      detail: "使用者創建表單",
-    });
 
     res.status(201).json({
       status: "success",
