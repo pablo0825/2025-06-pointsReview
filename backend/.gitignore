@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# production
+dist/
+
+# misc
+.DS_Store
+.env*
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# testing
+coverage/
+
+# cache
+.cache/
