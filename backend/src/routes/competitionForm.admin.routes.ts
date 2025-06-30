@@ -8,19 +8,25 @@ import {
   extendExpiryDateById,
   lockFormById,
   unlockFormById,
+  deleteSingleFileById,
+  downloadSingleFile,
 } from "../controllers/competitionForm.admin.controller";
+import { asyncHandler } from "../middlewares/asyncHandler";
 
 const router = Router();
 
-router.get("/", getAllFormDate);
-router.get("/:id", getFormById);
+router.get("/", asyncHandler(getAllFormDate));
+router.get("/:id", asyncHandler(getFormById));
 
-router.patch("/:id/revise", reviseFormById);
-router.post("/:id/approve", approveFormById);
+router.patch("/:id/revise", asyncHandler(reviseFormById));
+router.post("/:id/approve", asyncHandler(approveFormById));
 router.post("/:id/reject", rejectFormByID);
 
-router.post("/:id/extend-expiration", extendExpiryDateById);
-router.post("/:id/lock", lockFormById);
-router.post("/:id/unlock", unlockFormById);
+router.post("/:id/extend-expiration", asyncHandler(extendExpiryDateById));
+router.post("/:id/lock", asyncHandler(lockFormById));
+router.post("/:id/unlock", asyncHandler(unlockFormById));
+
+router.delete("/:id/files", asyncHandler(deleteSingleFileById));
+router.get("/:id/download/:fileName", asyncHandler(downloadSingleFile));
 
 export default router;

@@ -87,6 +87,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
+  //MongoDB 錯誤（如唯一鍵衝突）
+  if (err.code === 11000 && err.keyPattern?.editToken) {
+    res.status(409).json({
+      status: "fail",
+      message: "系統產生的 editToken 重複，請稍後再試一次",
+    });
+    return;
+  }
+
   //處理mongoose資料驗證錯誤
   if (err.name === "ValidationError") {
     err.message = "資料欄位未填寫正確，請重新輸入！";

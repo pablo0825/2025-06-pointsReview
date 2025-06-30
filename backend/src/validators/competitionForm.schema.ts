@@ -39,7 +39,7 @@ export const competitionFormSchema = z
     date: z.coerce.date(), // 支援接收字串
     totalPoints: z.number().min(0),
     students: z.array(studentSubmissionSchema).min(1),
-    evidenceFileUrl: z.array(z.string().url()).min(0),
+    evidenceFileUrls: z.array(z.string().url()).min(0),
     contact: contactSchema,
     advisor: z.string().min(1),
   })

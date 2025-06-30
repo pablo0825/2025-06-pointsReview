@@ -19,3 +19,5 @@ coverage/
 
 # cache
 .cache/
+
+/backend/storage/uploads/

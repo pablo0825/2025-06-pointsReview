@@ -33,7 +33,7 @@ export interface ICompetitionForm extends Document {
   awardOther?: string;
   date: Date;
   students: IStudent[];
-  evidenceFileUrl: string[];
+  evidenceFileUrls: string[];
   contact: IContact;
   advisor: string;
   totalPoints: number;

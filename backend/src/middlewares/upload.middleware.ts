@@ -10,7 +10,7 @@ const allowedExtensions = [".pdf", ".jpg", ".jpeg", ".png"];
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, "uploads/");
+    cb(null, path.join(__dirname, "../../storage/uploads"));
   },
   filename: (req, file, cb) => {
     const contactName = sanitizeFileName(

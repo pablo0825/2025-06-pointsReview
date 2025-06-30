@@ -57,7 +57,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
       message: "至少需要一位學生",
     },
   }, //申請學生
-  evidenceFileUrl: { type: [String], required: true }, //佐證資料URL
+  evidenceFileUrls: { type: [String], required: true }, //佐證資料URL
   contact: { type: ContactSchema, required: true }, //主要聯絡人
   advisor: { type: String, required: true }, //指導老師
   status: {
