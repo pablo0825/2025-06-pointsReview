@@ -20,7 +20,7 @@ router.get("/:id", asyncHandler(getFormById));
 
 router.patch("/:id/revise", asyncHandler(reviseFormById));
 router.post("/:id/approve", asyncHandler(approveFormById));
-router.post("/:id/reject", rejectFormByID);
+router.post("/:id/reject", asyncHandler(rejectFormByID));
 
 router.post("/:id/extend-expiration", asyncHandler(extendExpiryDateById));
 router.post("/:id/lock", asyncHandler(lockFormById));
