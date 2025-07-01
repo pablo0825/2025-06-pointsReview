@@ -5,7 +5,7 @@ import {
   updatedFormByToKen,
 } from "../controllers/competitionForm.controller";
 import { upload } from "../middlewares/upload.middleware";
-import { asyncHandler } from "../middlewares/asyncHandler";
+import { asyncHandler } from "../middlewares/asyncHandler.middleware";
 
 const router = express.Router();
 

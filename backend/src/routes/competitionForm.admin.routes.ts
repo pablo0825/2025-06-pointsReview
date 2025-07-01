@@ -11,7 +11,7 @@ import {
   deleteSingleFileById,
   downloadSingleFile,
 } from "../controllers/competitionForm.admin.controller";
-import { asyncHandler } from "../middlewares/asyncHandler";
+import { asyncHandler } from "../middlewares/asyncHandler.middleware";
 
 const router = Router();
 

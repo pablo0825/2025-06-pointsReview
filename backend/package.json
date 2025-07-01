@@ -12,10 +12,12 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/helmet": "^0.0.48",
     "@types/http-errors": "^2.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/multer": "^1.4.13",
     "@types/node": "^24.0.7",
@@ -24,11 +26,13 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "http-errors": "^2.0.0",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
