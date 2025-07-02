@@ -1,89 +1,236 @@
+// auth.conrtoller.ts
 import { Request, Response } from "express";
-import { User } from "../models/user.models";
+import { UserDB } from "../models/user.models";
 import { registerSchema, loginSchema } from "../validators/auth.schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/AppError";
 import { handleSuccess } from "../utils/handleSuccess";
-import { RefreshToken } from "../models/refreshTokens.models";
+import { RefreshTokenDB } from "../models/refreshTokens.models";
 
-const auth = require("../middlewares/auth.middleware");
+const authMiddleware = require("../middlewares/auth.middleware");
 
+// 註冊
 export const register = async (req: Request, res: Response) => {
   const data = registerSchema.parse(req.body);
 
-  const exists = await User.findOne({ username: data.username });
+  const exists = await UserDB.findOne({ username: data.username });
   if (exists) {
     throw new AppError(400, "false", "使用者已存在");
   }
 
   const hashed = await bcrypt.hash(data.password, 12);
-  const user = await User.create({ username: data.username, password: hashed });
+  const user = await UserDB.create({
+    username: data.username,
+    password: hashed,
+  });
 
-  return handleSuccess(res, 201, "true", "註冊成功", user);
+  return handleSuccess(res, 201, "true", "註冊成功", {
+    user: {
+      id: user._id,
+      username: user.username,
+    },
+  });
 };
 
+// 登入
 export const login = async (req: Request, res: Response) => {
   const { username, password } = loginSchema.parse(req.body);
 
-  const user = await User.findOne({ username: username });
+  const user = await UserDB.findOne({ username: username });
   if (!user || !(await bcrypt.compare(password, user.password))) {
     throw new AppError(401, "false", "帳號或密碼錯誤");
   }
 
   // accessToken - 15分鐘過期
   // refreshToke - 7天過期
-  const accessToken = auth.generateAccessToken(
-    { id: user.id, name: user.username, email: user.email, roles: user.roles },
+  const accessToken = authMiddleware.generateAccessToken(
+    { id: user._id, name: user.username, email: user.email, roles: user.roles },
     "15m"
-  ); // 15 分鐘過期
-  const refreshToken = auth.generateRefreshToken({ id: user.id }, "7d");
+  );
+  const refreshToken = authMiddleware.generateRefreshToken(
+    { id: user._id },
+    "7d"
+  );
 
-  let expiresAt: Date;
+  /*  let expiresAt: Date;
   try {
     const decodedRefreshToken = jwt.decode(refreshToken) as jwt.JwtPayload;
+
     if (decodedRefreshToken && decodedRefreshToken.exp) {
       expiresAt = new Date(decodedRefreshToken.exp * 1000); // JWT exp 是 UNIX timestamp (秒)，需要轉換為毫秒
     } else {
-      // 如果無法從 token 中獲取過期時間，則根據 expiresIn 參數估算
-      // 這需要一個函數來解析 "7d" 這樣的字串，或者直接傳遞 Date 物件給模型
-      // 這裡簡化為直接使用 7 天後的日期，但推薦從 JWT 內部獲取
       expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
   } catch (error) {
     console.error("Error decoding refresh token to get expiration:", error);
-    // 發生錯誤時的 fallback，例如預設為 7 天後過期
+
     expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   }
+ */
+
+  const decoded = jwt.decode(refreshToken) as jwt.JwtPayload;
+  const expiresAt = new Date(decoded.exp! * 1000);
 
   // 創建 RefreshToken 模型的實例並儲存資訊
-  const newRefreshToken = new RefreshToken({
-    userId: user._id, // 確保這裡的 _id 類型與模型定義的 userId 類型匹配
+  const newRefreshTokenDB = new RefreshTokenDB({
     token: refreshToken,
-    expiresAt: expiresAt, // 儲存計算出的過期時間
+    userId: user._id,
+    expiresAt: expiresAt,
   });
 
   try {
-    await newRefreshToken.save(); // 使用 .save() 方法將資料寫入資料庫
+    await newRefreshTokenDB.save();
   } catch (error) {
     console.error("Failed to save refresh token to DB:", error);
-    // 根據錯誤類型決定是否拋出 AppError 或其他處理
+
     throw new AppError(500, "false", "無法儲存 Refresh Token，請稍後再試。");
   }
 
-  // 注意：您程式碼中還有一個 jwt.sign 產生了一個名為 'token' 的 JWT，
-  // 並且其過期時間也是 "7d"。這似乎與上面的 accessToken/refreshToken 邏輯重複了。
-  // 通常，您只需要回傳 accessToken 和 refreshToken 給前端。
-  // 假設這個 'token' 是舊的或是不需要的，我將其註釋掉。
-  // const token = jwt.sign(
-  //   { id: user._id, role: user.roles },
-  //   process.env.JWT_SECRET!,
-  //   { expiresIn: "7d" }
-  // );
+  // 將 refreshToken 存到 httpOnly裡面
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: "lax",
+    path: "/",
+  });
 
-  res.json({
-    accessToken: accessToken, // 將 accessToken 回傳給前端
-    refreshToken: refreshToken, // 將 refreshToken 回傳給前端
+  // 將 accessToken 回傳給前端
+  handleSuccess(res, 200, "true", "登入成功", {
+    accessToken: accessToken,
     user: { id: user._id, username: user.username, role: user.roles },
+  });
+};
+
+// 刷新
+export const refresh = async (req: Request, res: Response) => {
+  const refreshTokenFromCookie = req.cookies.refreshToken;
+  if (!refreshTokenFromCookie) {
+    throw new AppError(401, "false", "缺少 refresh token");
+  }
+
+  const storedToken = await RefreshTokenDB.findOne({
+    token: refreshTokenFromCookie,
+  });
+  if (!storedToken) {
+    res.clearCookie("refreshToken");
+    throw new AppError(
+      403,
+      "false",
+      "refresh token 無效或已作廢，請重新登入。"
+    );
+  }
+
+  try {
+    const decoded = jwt.verify(
+      refreshTokenFromCookie,
+      authMiddleware.JWT_REFRESH_SECRET
+    ) as jwt.JwtPayload;
+
+    if (decoded.id !== storedToken.userId.toString()) {
+      res.clearCookie("refreshToken");
+      throw new AppError(
+        403,
+        "false",
+        "Refresh Token 使用者 ID 不匹配，請重新登入。"
+      );
+    }
+
+    storedToken.revokedAt = new Date(Date.now());
+    await storedToken.save();
+
+    const user = await UserDB.findById(decoded._id);
+    if (!user) {
+      throw new AppError(404, "false", "使用者不存在，請重新登入。");
+    }
+
+    const newAccessToken = authMiddleware.generateAccessToken(
+      {
+        id: user._id,
+        username: user.username,
+        roles: user.roles,
+      },
+      "15m"
+    );
+
+    const newRefreshToken = authMiddleware.generateRefreshToken(
+      { id: user._id },
+      "7d"
+    );
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    handleSuccess(res, 200, "true", "登入成功", {
+      accessToken: newAccessToken,
+      user: {
+        id: user._id,
+        username: user.username,
+        role: user.roles,
+      },
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error("Refresh Token validation error:", err.message);
+    }
+
+    res.clearCookie("refreshToken");
+    throw new AppError(
+      403,
+      "false",
+      "Refresh Token 無效或已過期，請重新登入。"
+    );
+  }
+};
+
+//登出
+export const logout = async (req: Request, res: Response) => {
+  const refreshTokenFromCookie = req.cookies.refreshToken;
+  if (!refreshTokenFromCookie) {
+    throw new AppError(401, "false", "缺少 refresh token");
+  }
+
+  const storedToken = await RefreshTokenDB.findOne({
+    token: refreshTokenFromCookie,
+  });
+  if (!storedToken) {
+    res.clearCookie("refreshToken");
+    throw new AppError(
+      403,
+      "false",
+      "refresh token 無效或已作廢，請重新登入。"
+    );
+  }
+
+  storedToken.revokedAt = new Date(Date.now());
+  await storedToken.save();
+
+  res.clearCookie("refreshToken");
+
+  handleSuccess(res, 200, "true", "登出成功", {});
+};
+
+export const getMe = async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError(401, "false", "尚未驗證身分，請重新登入");
+  }
+
+  const user = await UserDB.findById(userId).select("-password");
+  if (!user) {
+    throw new AppError(404, "false", "找不到使用者資訊");
+  }
+
+  handleSuccess(res, 200, "true", "取得使用者資訊成功", {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    roles: user.roles,
   });
 };

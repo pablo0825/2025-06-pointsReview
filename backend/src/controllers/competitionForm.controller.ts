@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { CompetitionForm } from "../models/competitionForm.models";
+import { CompetitionFormDB } from "../models/competitionForm.models";
 import { competitionFormSchema } from "../validators/competitionForm.schema";
 import { getChangedFields } from "../utils/getChangedFields";
 import { AppError } from "../utils/AppError";
@@ -23,7 +23,7 @@ export const submitForm = async (
 
   const validateDate = competitionFormSchema.parse(req.body);
 
-  const newForm = await CompetitionForm.create({
+  const newForm = await CompetitionFormDB.create({
     ...validateDate,
     evidenceFiles: fileUrls,
     history: [
@@ -44,7 +44,7 @@ export const submitForm = async (
 export const getFormByToken = async (req: Request, res: Response) => {
   const token = req.params.token;
 
-  const form = await CompetitionForm.findOne({ editToken: token }).select(
+  const form = await CompetitionFormDB.findOne({ editToken: token }).select(
     "-_id -history"
   );
 
@@ -78,7 +78,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
     ? JSON.parse(req.body.keepFiles)
     : [];
 
-  const form = await CompetitionForm.findOne({ editToken: token });
+  const form = await CompetitionFormDB.findOne({ editToken: token });
 
   if (!form) {
     throw new AppError(404, "fail", "找不到 editToken 對應的表單");

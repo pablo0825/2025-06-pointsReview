@@ -1,3 +1,4 @@
+// auth.middleware.ts
 import jwt, { SignOptions } from "jsonwebtoken";
 import { AppError } from "../utils/AppError";
 import { Request, Response, NextFunction } from "express";
@@ -10,6 +11,15 @@ interface UserPayload {
 }
 
 export class AuthMiddleware {
+  static generateAccessToken(
+    arg0: { id: unknown; name: string; email: string; roles: string },
+    arg1: string
+  ) {
+    throw new Error("Method not implemented.");
+  }
+  static generateRefreshToken(arg0: { id: unknown }, arg1: string) {
+    throw new Error("Method not implemented.");
+  }
   private JWT_ACCESS_SECRET: string;
   private JWT_REFRESH_SECRET: string;
 
@@ -34,7 +44,9 @@ export class AuthMiddleware {
     this.JWT_REFRESH_SECRET = secret2;
   }
 
-  //產生使用的token
+  //userPayload是資料包，裡面有user_id, user_name, user_email, user_rold et al data
+
+  //產生訪問token
   generateAccessToken(userPayload: UserPayload, expiresIn: string = "15m") {
     const options: SignOptions = {
       expiresIn: expiresIn as SignOptions["expiresIn"],
@@ -43,7 +55,7 @@ export class AuthMiddleware {
     return jwt.sign(userPayload, this.JWT_ACCESS_SECRET, options);
   }
 
-  //產生刷新的token
+  //產生刷新token
   generateRefreshToken(userPayload: UserPayload, expiresIn: string = "7d") {
     const options: SignOptions = {
       expiresIn: expiresIn as SignOptions["expiresIn"],
@@ -52,18 +64,21 @@ export class AuthMiddleware {
     return jwt.sign({ id: userPayload.id }, this.JWT_REFRESH_SECRET, options);
   }
 
-  //認證token
+  //驗證token
+  //xhr可以經由特定的URL摘取資料，但不用刷新整個頁面
   async authenticateToken(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers["authorization"];
     const accessToken = authHeader && authHeader.split(" ")[1];
 
     if (!accessToken) {
+      //如果是 AJAX 請求，或前端請求 JSON 回應
       if (
         req.xhr ||
         (req.headers.accept && req.headers.accept.includes("application/json"))
       ) {
         throw new AppError(401, "false", "未提供AccessToken，請重新登入。");
       }
+
       return res.redirect(
         `/login?redirectTo=${encodeURIComponent(req.originalUrl)}`
       );
@@ -141,4 +156,5 @@ export class AuthMiddleware {
   }
 }
 
+//實例化 (在這邊做一次就好，直接都是引用)
 module.exports = new AuthMiddleware();

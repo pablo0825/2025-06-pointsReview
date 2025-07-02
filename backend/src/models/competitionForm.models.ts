@@ -83,7 +83,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
   updatedAt: { type: Date, default: Date.now }, //更新時間
 });
 
-export const CompetitionForm = mongoose.model<ICompetitionForm>(
+export const CompetitionFormDB = mongoose.model<ICompetitionForm>(
   "Employee",
   CompetitionFormSchema
 );

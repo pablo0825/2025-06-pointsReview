@@ -9,8 +9,9 @@ import logger from "morgan";
 import mongoose from "mongoose";
 import helmet from "helmet";
 import { ZodError } from "zod";
-import competitionFormRoutes from "./routes/competitionForm.routes";
-import competitionFormAdminRoutes from "./routes/competitionForm.admin.routes";
+import competitionFormRoute from "./routes/competitionForm.route";
+import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
+import authAdminRoute from "./routes/auth.admin.route";
 
 // 處理未捕捉的例外（同步錯誤）
 process.on("uncaughtException", (err) => {
@@ -63,8 +64,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* 註冊路由 */
-app.use("/api/competition", competitionFormRoutes);
-app.use("/api/admin/competition", competitionFormAdminRoutes);
+app.use("/api/competition", competitionFormRoute);
+app.use("/api/admin/competition", competitionFormAdminRoute);
+app.use("/api/admin/", authAdminRoute);
 
 /* app.use("/uploads", express.static(path.join(__dirname, "uploads"))); */
 

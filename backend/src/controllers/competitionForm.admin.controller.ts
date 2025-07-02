@@ -1,6 +1,6 @@
 //competitionFrom.admin.controllers
 import { Request, Response } from "express";
-import { CompetitionForm } from "../models/competitionForm.models";
+import { CompetitionFormDB } from "../models/competitionForm.models";
 import {
   reviseNoteSchema,
   rejectedReasonSchema,
@@ -20,7 +20,7 @@ export const getAllFormDate = async (req: Request, res: Response) => {
       filter.status = req.query.status;
     } */
 
-  const forms = await CompetitionForm.find(filter)
+  const forms = await CompetitionFormDB.find(filter)
     .sort({ _id: -1 })
     .select("name date level award status contact.name");
 
@@ -46,7 +46,7 @@ export const getFormById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "ID 格式錯誤");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
 
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
@@ -66,7 +66,7 @@ export const reviseFormById = async (req: Request, res: Response) => {
   //解析revisionNote
   const { revisionNote } = reviseNoteSchema.parse(req.body);
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
 
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
@@ -109,7 +109,7 @@ export const approveFormById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "ID 格式錯誤");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
 
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
@@ -159,7 +159,7 @@ export const rejectFormByID = async (req: Request, res: Response) => {
   //解析revisionNote
   const { rejectedReason } = rejectedReasonSchema.parse(req.body);
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
 
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
@@ -206,7 +206,7 @@ export const extendExpiryDateById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "ID 格式錯誤");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
 
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
@@ -252,7 +252,7 @@ export const lockFormById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "ID 格式錯誤");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
   }
@@ -290,7 +290,7 @@ export const unlockFormById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "ID 格式錯誤");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
   }
@@ -326,7 +326,7 @@ export const deleteSingleFileById = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "請提供要刪除的檔案 URL");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
   }
@@ -380,7 +380,7 @@ export const downloadSingleFile = async (req: Request, res: Response) => {
     throw new AppError(400, "fail", "請提供檔案名稱");
   }
 
-  const form = await CompetitionForm.findById(id);
+  const form = await CompetitionFormDB.findById(id);
   if (!form) {
     throw new AppError(404, "fail", "找不到表單資料");
   }
