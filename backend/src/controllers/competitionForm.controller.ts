@@ -15,7 +15,7 @@ export const submitForm = async (
   const files = (req.files as Express.Multer.File[]) || [];
 
   if (files.length > 10) {
-    throw new AppError(400, "fail", "最多上傳 10 個檔案");
+    throw new AppError(400, "false", "最多上傳 10 個檔案");
   }
 
   // 儲存檔案 URL 到 DB 中
@@ -37,7 +37,7 @@ export const submitForm = async (
   });
 
   //const editToken = newForm.editToken;
-  return handleSuccess(res, 201, "success", "新增成功", newForm);
+  return handleSuccess(res, 201, "true", "新增成功", newForm);
 };
 
 //根據 editToKen 取得表單
@@ -49,23 +49,23 @@ export const getFormByToken = async (req: Request, res: Response) => {
   );
 
   if (!form) {
-    throw new AppError(404, "fail", "找不到 editToken 對應的表單");
+    throw new AppError(404, "false", "找不到 editToken 對應的表單");
   }
 
   if (form.status !== "needs_revision") {
-    throw new AppError(403, "fail", "表單不在編輯狀態");
+    throw new AppError(403, "false", "表單不在編輯狀態");
   }
 
   const now = new Date();
   if (now > form.expirationDate) {
-    throw new AppError(403, "fail", "編輯連結已過期");
+    throw new AppError(403, "false", "編輯連結已過期");
   }
 
   if (form.isLocked === true) {
-    throw new AppError(403, "fail", "表單已鎖定");
+    throw new AppError(403, "false", "表單已鎖定");
   }
 
-  return handleSuccess(res, 200, "success", "取得表單", form);
+  return handleSuccess(res, 200, "true", "取得表單", form);
 };
 
 //根據 editToKen 更新表單
@@ -81,20 +81,20 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   const form = await CompetitionFormDB.findOne({ editToken: token });
 
   if (!form) {
-    throw new AppError(404, "fail", "找不到 editToken 對應的表單");
+    throw new AppError(404, "false", "找不到 editToken 對應的表單");
   }
 
   if (form.status !== "needs_revision") {
-    throw new AppError(403, "fail", "表單不在編輯狀態");
+    throw new AppError(403, "false", "表單不在編輯狀態");
   }
 
   const now = new Date();
   if (now > form.expirationDate) {
-    throw new AppError(403, "fail", "編輯連結已過期");
+    throw new AppError(403, "false", "編輯連結已過期");
   }
 
   if (form.isLocked === true) {
-    throw new AppError(403, "fail", "表單已鎖定");
+    throw new AppError(403, "false", "表單已鎖定");
   }
 
   //把mongode document轉換成json儲存起來
@@ -135,5 +135,5 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
 
   await form.save();
 
-  return handleSuccess(res, 200, "success", "更新成功", form);
+  return handleSuccess(res, 200, "true", "更新成功", form);
 };

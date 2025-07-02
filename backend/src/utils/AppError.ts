@@ -1,12 +1,12 @@
 export class AppError extends Error {
-  public readonly httpStatusCode: number;
+  public readonly statusCode: number;
   public readonly status: string;
   public readonly isOperational: boolean;
 
-  constructor(httpStatusCode: number, status: string, message: string) {
+  constructor(statusCode: number, status: string, message: string) {
     super(message);
 
-    this.httpStatusCode = httpStatusCode;
+    this.statusCode = statusCode;
     this.status = status;
     this.isOperational = true;
 

@@ -84,6 +84,6 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
 });
 
 export const CompetitionFormDB = mongoose.model<ICompetitionForm>(
-  "Employee",
+  "CompetitionForm",
   CompetitionFormSchema
 );

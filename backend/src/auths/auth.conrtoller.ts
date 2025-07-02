@@ -6,7 +6,9 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/AppError";
 import { handleSuccess } from "../utils/handleSuccess";
-import { RefreshTokenDB } from "../models/refreshTokens.models";
+import { RefreshTokenDB } from "../models/refreshToKen.models";
+import mongoose from "mongoose";
+import { string } from "zod";
 
 const authMiddleware = require("../middlewares/auth.middleware");
 
@@ -231,6 +233,38 @@ export const getMe = async (req: Request, res: Response) => {
     id: user._id,
     username: user.username,
     email: user.email,
+    roles: user.roles,
+  });
+};
+
+export const assignRole = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new AppError(400, "false", "ID 格式錯誤");
+  }
+
+  const { role } = req.body;
+
+  const allowedRoles = ["user", "admin", "director"];
+  if (typeof role !== "string" || !allowedRoles.includes(role)) {
+    throw new AppError(400, "false", "提供的角色不合法");
+  }
+
+  const user = await UserDB.findById(id);
+  if (!user) {
+    throw new AppError(404, "false", "找不到使用者");
+  }
+
+  if (user.roles.includes("admin") && !role.includes("admin")) {
+    throw new AppError(403, "false", "不能移除管理員身份");
+  }
+
+  user.roles = role;
+  await user.save();
+
+  return handleSuccess(res, 200, "true", "角色更新成功", {
+    id: user._id,
+    username: user.username,
     roles: user.roles,
   });
 };

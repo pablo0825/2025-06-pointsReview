@@ -11,15 +11,6 @@ interface UserPayload {
 }
 
 export class AuthMiddleware {
-  static generateAccessToken(
-    arg0: { id: unknown; name: string; email: string; roles: string },
-    arg1: string
-  ) {
-    throw new Error("Method not implemented.");
-  }
-  static generateRefreshToken(arg0: { id: unknown }, arg1: string) {
-    throw new Error("Method not implemented.");
-  }
   private JWT_ACCESS_SECRET: string;
   private JWT_REFRESH_SECRET: string;
 
@@ -71,8 +62,9 @@ export class AuthMiddleware {
     const accessToken = authHeader && authHeader.split(" ")[1];
 
     if (!accessToken) {
-      //如果是 AJAX 請求，或前端請求 JSON 回應
-      if (
+      // 如果是 AJAX 請求，或前端請求 JSON 回應
+      // 因為是純API測試，所以先註解掉以下程式碼
+      /*  if (
         req.xhr ||
         (req.headers.accept && req.headers.accept.includes("application/json"))
       ) {
@@ -81,7 +73,9 @@ export class AuthMiddleware {
 
       return res.redirect(
         `/login?redirectTo=${encodeURIComponent(req.originalUrl)}`
-      );
+      ); */
+
+      throw new AppError(401, "false", "未提供 AccessToken，請先登入。");
     }
 
     try {
@@ -95,7 +89,13 @@ export class AuthMiddleware {
     } catch (err: any) {
       console.error("Access Token authentication error:", err.message);
 
-      if (
+      throw new AppError(
+        401,
+        "false",
+        "AccessToken 無效或已過期，請重新登入。"
+      );
+
+      /*  if (
         req.xhr ||
         (req.headers.accept && req.headers.accept.includes("application/json"))
       ) {
@@ -108,7 +108,7 @@ export class AuthMiddleware {
 
       return res.redirect(
         `/login?redirectTo=${encodeURIComponent(req.originalUrl)}`
-      );
+      ); */
     }
   }
 

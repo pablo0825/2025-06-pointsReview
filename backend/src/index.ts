@@ -1,9 +1,13 @@
-//index.ts
+// index.ts
+// 載入環境變數
+import dotenv from "dotenv";
+dotenv.config({ path: "./config.env" });
+
+// 載入模組
 import express from "express";
 import { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
-import dotenv from "dotenv";
 import createError from "http-errors";
 import logger from "morgan";
 import mongoose from "mongoose";
@@ -20,12 +24,13 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-//載入環境變數
-dotenv.config({ path: "./config.env" });
-
 /* 檢查DATABASE和DATABASE_PASSWORD是否存在*/
 if (!process.env.DATABASE || !process.env.DATABASE_PASSWORD) {
   throw new Error("❌ DATABASE 或 DATABASE_PASSWORD 環境變數未設定");
+}
+
+if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  throw new Error("❌ JWT_ACCESS_SECRET 或 JWT_REFRESH_SECRET 環境變數未設定");
 }
 
 /* 替換資料庫密碼 */
@@ -64,9 +69,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* 註冊路由 */
-app.use("/api/competition", competitionFormRoute);
-app.use("/api/admin/competition", competitionFormAdminRoute);
-app.use("/api/admin/", authAdminRoute);
+app.use("/api/form/competition", competitionFormRoute);
+app.use("/api/admin/form/competition", competitionFormAdminRoute);
+app.use("/api/admin/auth", authAdminRoute);
 
 /* app.use("/uploads", express.static(path.join(__dirname, "uploads"))); */
 
