@@ -21,16 +21,16 @@ export const submitForm = async (
   // 儲存檔案 URL 到 DB 中
   const fileUrls = files.map((file) => `/uploads/${file.filename}`);
 
-  const validateDate = competitionFormSchema.parse(req.body);
+  const validateFormData = competitionFormSchema.parse(req.body);
 
   const newForm = await CompetitionFormDB.create({
-    ...validateDate,
+    ...validateFormData,
     evidenceFiles: fileUrls,
     history: [
       {
         type: "created",
         timestamp: new Date(),
-        user: validateDate.contact?.name || "user",
+        user: validateFormData.contact?.name || "user",
         detail: "使用者創建表單",
       },
     ],
@@ -73,7 +73,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   const files = (req.files as Express.Multer.File[]) || [];
   const token = req.params.token;
 
-  const validateDate = competitionFormSchema.parse(req.body);
+  const validateFormData = competitionFormSchema.parse(req.body);
   const keepFiles: string[] = req.body.keepFiles
     ? JSON.parse(req.body.keepFiles)
     : [];
@@ -99,7 +99,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
 
   //把mongode document轉換成json儲存起來
   const original = form.toObject();
-  const changedFields = getChangedFields(original, validateDate);
+  const changedFields = getChangedFields(original, validateFormData);
 
   //刪除未保留的檔案
   const deletedFiles = form.evidenceFileUrls.filter(
@@ -117,7 +117,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   form.evidenceFileUrls = [...keepFiles, ...uploadedFiles];
 
   //把validateDate合併到form裡面
-  Object.assign(form, validateDate);
+  Object.assign(form, validateFormData);
 
   //form status變為"resubmitted"
   //更新時間
@@ -127,7 +127,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   form.history.push({
     type: "updated",
     timestamp: new Date(),
-    user: validateDate.contact?.name || "user",
+    user: validateFormData.contact?.name || "user",
     detail: changedFields.length
       ? `使用者更新了欄位：${changedFields.join(", ")}`
       : "使用者提交了表單但無變更",

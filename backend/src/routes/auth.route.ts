@@ -6,9 +6,7 @@ import {
   logout,
   refresh,
   register,
-  getMe,
-  assignRole,
-} from "../auths/auth.conrtoller";
+} from "../controllers/auths/auth.conrtoller";
 
 const authMiddleware = require("../middlewares/auth.middleware");
 
@@ -18,12 +16,5 @@ router.post("/register", asyncHandler(register));
 router.post("/login", asyncHandler(login));
 router.post("/logout", asyncHandler(logout));
 router.post("/refreshToken", asyncHandler(refresh));
-router.get("/me", authMiddleware.authenticateToken, asyncHandler(getMe));
-router.patch(
-  "/users/:id/role",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin"]),
-  asyncHandler(assignRole)
-);
 
 export default router;

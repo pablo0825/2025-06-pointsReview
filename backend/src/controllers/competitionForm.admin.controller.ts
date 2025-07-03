@@ -12,7 +12,7 @@ import fs from "fs";
 import path from "path";
 
 // 查詢所有表單
-export const getAllFormDate = async (req: Request, res: Response) => {
+export const getAllFormData = async (req: Request, res: Response) => {
   const filter: any = {};
 
   // 等之後要做指定查詢，在來處理這個部分

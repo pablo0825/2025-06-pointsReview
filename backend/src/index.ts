@@ -15,7 +15,8 @@ import helmet from "helmet";
 import { ZodError } from "zod";
 import competitionFormRoute from "./routes/competitionForm.route";
 import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
-import authAdminRoute from "./routes/auth.admin.route";
+import authRoute from "./routes/auth.route";
+import userAdminRoute from "./routes/user.admin.route";
 
 // 處理未捕捉的例外（同步錯誤）
 process.on("uncaughtException", (err) => {
@@ -71,7 +72,8 @@ app.use(express.static(path.join(__dirname, "public")));
 /* 註冊路由 */
 app.use("/api/form/competition", competitionFormRoute);
 app.use("/api/admin/form/competition", competitionFormAdminRoute);
-app.use("/api/admin/auth", authAdminRoute);
+app.use("/api/auth", authRoute);
+app.use("/api/admin/users", userAdminRoute);
 
 /* app.use("/uploads", express.static(path.join(__dirname, "uploads"))); */
 

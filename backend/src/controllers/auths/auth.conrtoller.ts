@@ -1,22 +1,23 @@
 // auth.conrtoller.ts
 import { Request, Response } from "express";
-import { UserDB } from "../models/user.models";
-import { registerSchema, loginSchema } from "../validators/auth.schema";
+import { UserDB } from "../../models/user.models";
+import { registerSchema, loginSchema } from "../../validators/auth.schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { AppError } from "../utils/AppError";
-import { handleSuccess } from "../utils/handleSuccess";
-import { RefreshTokenDB } from "../models/refreshToKen.models";
-import mongoose from "mongoose";
-import { string } from "zod";
+import { AppError } from "../../utils/AppError";
+import { handleSuccess } from "../../utils/handleSuccess";
+import { RefreshTokenDB } from "../../models/refreshToken.models";
 
-const authMiddleware = require("../middlewares/auth.middleware");
+const authMiddleware = require("../../middlewares/auth.middleware");
 
 // 註冊
 export const register = async (req: Request, res: Response) => {
   const data = registerSchema.parse(req.body);
 
-  const exists = await UserDB.findOne({ username: data.username });
+  const exists = await UserDB.findOne({
+    username: data.username,
+    isDeleted: false,
+  });
   if (exists) {
     throw new AppError(400, "false", "使用者已存在");
   }
@@ -25,6 +26,14 @@ export const register = async (req: Request, res: Response) => {
   const user = await UserDB.create({
     username: data.username,
     password: hashed,
+    email: data.email,
+    history: [
+      {
+        timestamp: new Date(),
+        user: data.username,
+        detail: `${data.username} 使用者創建`,
+      },
+    ],
   });
 
   return handleSuccess(res, 201, "true", "註冊成功", {
@@ -39,7 +48,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   const { username, password } = loginSchema.parse(req.body);
 
-  const user = await UserDB.findOne({ username: username });
+  const user = await UserDB.findOne({ username: username, isDeleted: false });
   if (!user || !(await bcrypt.compare(password, user.password))) {
     throw new AppError(401, "false", "帳號或密碼錯誤");
   }
@@ -142,7 +151,7 @@ export const refresh = async (req: Request, res: Response) => {
     storedToken.revokedAt = new Date(Date.now());
     await storedToken.save();
 
-    const user = await UserDB.findById(decoded._id);
+    const user = await UserDB.findOne({ _id: decoded._id, isDeleted: false });
     if (!user) {
       throw new AppError(404, "false", "使用者不存在，請重新登入。");
     }
@@ -216,55 +225,4 @@ export const logout = async (req: Request, res: Response) => {
   res.clearCookie("refreshToken");
 
   handleSuccess(res, 200, "true", "登出成功", {});
-};
-
-export const getMe = async (req: Request, res: Response) => {
-  const userId = req.user?.id;
-  if (!userId) {
-    throw new AppError(401, "false", "尚未驗證身分，請重新登入");
-  }
-
-  const user = await UserDB.findById(userId).select("-password");
-  if (!user) {
-    throw new AppError(404, "false", "找不到使用者資訊");
-  }
-
-  handleSuccess(res, 200, "true", "取得使用者資訊成功", {
-    id: user._id,
-    username: user.username,
-    email: user.email,
-    roles: user.roles,
-  });
-};
-
-export const assignRole = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new AppError(400, "false", "ID 格式錯誤");
-  }
-
-  const { role } = req.body;
-
-  const allowedRoles = ["user", "admin", "director"];
-  if (typeof role !== "string" || !allowedRoles.includes(role)) {
-    throw new AppError(400, "false", "提供的角色不合法");
-  }
-
-  const user = await UserDB.findById(id);
-  if (!user) {
-    throw new AppError(404, "false", "找不到使用者");
-  }
-
-  if (user.roles.includes("admin") && !role.includes("admin")) {
-    throw new AppError(403, "false", "不能移除管理員身份");
-  }
-
-  user.roles = role;
-  await user.save();
-
-  return handleSuccess(res, 200, "true", "角色更新成功", {
-    id: user._id,
-    username: user.username,
-    roles: user.roles,
-  });
 };

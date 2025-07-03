@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {
-  getAllFormDate,
+  getAllFormData,
   getFormById,
   reviseFormById,
   approveFormById,
@@ -20,7 +20,7 @@ router.get(
   "/",
   authMiddleware.authenticateToken,
   authMiddleware.hasPermission(["user", "admin", "director"]),
-  asyncHandler(getAllFormDate)
+  asyncHandler(getAllFormData)
 );
 router.get(
   "/:id",
