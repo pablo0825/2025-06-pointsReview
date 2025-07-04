@@ -7,6 +7,8 @@ import jwt from "jsonwebtoken";
 import { AppError } from "../../utils/AppError";
 import { handleSuccess } from "../../utils/handleSuccess";
 import { RefreshTokenDB } from "../../models/refreshToken.models";
+import { sendResetPasswordEmail } from "../../senders/sendResetPasswordEmail";
+import crypto from "crypto";
 
 const authMiddleware = require("../../middlewares/auth.middleware");
 
@@ -114,7 +116,7 @@ export const login = async (req: Request, res: Response) => {
   });
 };
 
-// 刷新
+// 刷新token
 export const refresh = async (req: Request, res: Response) => {
   const refreshTokenFromCookie = req.cookies.refreshToken;
   if (!refreshTokenFromCookie) {
@@ -220,9 +222,100 @@ export const logout = async (req: Request, res: Response) => {
   }
 
   storedToken.revokedAt = new Date(Date.now());
-  await storedToken.save();
 
   res.clearCookie("refreshToken");
 
   handleSuccess(res, 200, "true", "登出成功", {});
+};
+
+// 忘記密碼
+export const forgetPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  const user = await UserDB.findOne({ email: email, isDeleted: false });
+  if (!user) {
+    throw new AppError(404, "false", "查無此帳號。");
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const hashedDbToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  user.resetPasswordToken = hashedDbToken;
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+  const resetURL = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+  // 若 resetToken 過去 5 分鐘內已發送過，則不再寄出
+  const lastReset = user.history.find(
+    (h) =>
+      /*    typeof h.detail === "string" && */
+      h.detail?.includes("重設密碼") &&
+      new Date().getTime() - new Date(h.timestamp).getTime() < 5 * 60 * 1000
+  );
+  if (lastReset) {
+    throw new AppError(429, "false", "請稍後再試，您已請求過密碼重設。");
+  }
+
+  try {
+    await sendResetPasswordEmail(user.email, user.username, resetURL);
+  } catch (err) {
+    console.error("發送重設密碼郵件失敗:", err);
+
+    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+  }
+
+  user.history.push({
+    timestamp: new Date(),
+    user: user.username || "user",
+    detail: `${user.username} 使用者重設密碼`,
+  });
+  await user.save();
+
+  handleSuccess(res, 200, "true", "重設密碼連結已寄出，請至信箱查收。", {});
+};
+
+// 重設密碼
+export const resetPassword = async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+  if (!token) {
+    throw new AppError(401, "false", "缺少重設密碼連結。");
+  }
+  if (!newPassword) {
+    throw new AppError(401, "false", "請輸入新密碼。");
+  }
+
+  try {
+    const hashedTokenFromRequest = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await UserDB.findOne({
+      resetPasswordToken: hashedTokenFromRequest,
+      resetPasswordExpires: { $gt: Date.now() },
+      isDeleted: false,
+    });
+    if (!user) {
+      throw new AppError(404, "false", "使用者不存在");
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+    user.password = hashed;
+    user.history.push({
+      timestamp: new Date(),
+      user: user.username || "user",
+      detail: `${user.username} 使用者更新密碼成功`,
+    });
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    return handleSuccess(res, 200, "true", "密碼重設成功", {});
+  } catch (err) {
+    throw new AppError(400, "false", "Token 無效或已過期");
+  }
 };

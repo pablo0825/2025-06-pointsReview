@@ -13,4 +13,6 @@ export interface IUser extends Document {
   roles: string;
   isDeleted: Boolean;
   history: IHistory[];
+  resetPasswordToken: string | undefined;
+  resetPasswordExpires: Date | undefined;
 }

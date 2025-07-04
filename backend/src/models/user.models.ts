@@ -10,7 +10,7 @@ const HistorySchema = new mongoose.Schema({
 const userSchema = new Schema<IUser>({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
   roles: {
     type: String,
     enum: ["user", "admin", "director", "noRole"],
@@ -18,6 +18,8 @@ const userSchema = new Schema<IUser>({
   },
   isDeleted: { type: Boolean, default: false },
   history: { type: [HistorySchema], default: [] },
+  resetPasswordToken: { type: String, default: undefined },
+  resetPasswordExpires: { type: Date, default: undefined },
 });
 
 export const UserDB = mongoose.model<IUser>("User", userSchema);

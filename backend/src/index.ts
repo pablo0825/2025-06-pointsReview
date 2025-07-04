@@ -17,6 +17,7 @@ import competitionFormRoute from "./routes/competitionForm.route";
 import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
 import authRoute from "./routes/auth.route";
 import userAdminRoute from "./routes/user.admin.route";
+import { AppError } from "./utils/AppError";
 
 // 處理未捕捉的例外（同步錯誤）
 process.on("uncaughtException", (err) => {
@@ -27,11 +28,35 @@ process.on("uncaughtException", (err) => {
 
 /* 檢查DATABASE和DATABASE_PASSWORD是否存在*/
 if (!process.env.DATABASE || !process.env.DATABASE_PASSWORD) {
-  throw new Error("❌ DATABASE 或 DATABASE_PASSWORD 環境變數未設定");
+  throw new AppError(
+    500,
+    "false",
+    "❌ DATABASE 或 DATABASE_PASSWORD 環境變數未設定"
+  );
 }
 
-if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
-  throw new Error("❌ JWT_ACCESS_SECRET 或 JWT_REFRESH_SECRET 環境變數未設定");
+if (
+  !process.env.JWT_ACCESS_SECRET ||
+  !process.env.JWT_REFRESH_SECRET ||
+  !process.env.JWT_RESET_SECRET
+) {
+  throw new AppError(
+    500,
+    "false",
+    "❌ JWT_ACCESS_SECRET, JWT_REFRESH_SECRET 或 JWT_RESET_SECRET 環境變數未設定"
+  );
+}
+
+if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  throw new AppError(
+    500,
+    "false",
+    "❌ EMAIL_USER 或 EMAIL_PASS 環境變數未設定"
+  );
+}
+
+if (!process.env.FRONTEND_URL) {
+  throw new AppError(500, "false", "❌ FRONTEND_URL 環境變數未設定");
 }
 
 /* 替換資料庫密碼 */
