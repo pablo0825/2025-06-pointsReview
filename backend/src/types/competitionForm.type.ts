@@ -24,6 +24,14 @@ export interface IHistory {
   detail?: string;
 }
 
+export interface IAdvisor {
+  name: string;
+  email: string;
+  isAgreed?: boolean;
+  teacherConfirmToken?: string | undefined;
+  teacherConfirmExpires?: Date | undefined;
+}
+
 export interface ICompetitionForm extends Document {
   level: string;
   levelOther?: string;
@@ -35,7 +43,7 @@ export interface ICompetitionForm extends Document {
   students: IStudent[];
   evidenceFileUrls: string[];
   contact: IContact;
-  advisor: string;
+  advisor: IAdvisor;
   totalPoints: number;
   status:
     | "submitted"

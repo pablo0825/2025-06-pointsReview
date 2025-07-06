@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { ICompetitionForm, IStudent } from "../types/competitionForm.type";
+import { boolean } from "zod";
 
 const StudentSchema = new mongoose.Schema({
   class: { type: String, required: true },
@@ -32,6 +33,14 @@ const HistorySchema = new mongoose.Schema({
   detail: { type: String },
 });
 
+const advisorSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  isAgreed: { type: boolean },
+  teacherConfirmToken: { type: String, default: undefined },
+  teacherConfirmExpires: { type: Date, default: undefined },
+});
+
 const CompetitionFormSchema = new Schema<ICompetitionForm>({
   level: {
     type: String,
@@ -59,7 +68,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
   }, //申請學生
   evidenceFileUrls: { type: [String], required: true }, //佐證資料URL
   contact: { type: ContactSchema, required: true }, //主要聯絡人
-  advisor: { type: String, required: true }, //指導老師
+  advisor: { type: advisorSchema, required: true }, //指導老師
   status: {
     type: String,
     enum: [

@@ -6,6 +6,9 @@ import { AppError } from "../utils/AppError";
 import { handleSuccess } from "../utils/handleSuccess";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
+import { sendTeacherConfirmEmail } from "../senders/sendTeacherConfirmEmail";
+import { sendApplicantNotifyEmail } from "../senders/sendApplicantNotifyEmail";
 
 //提交新表單
 export const submitForm = async (
@@ -36,7 +39,50 @@ export const submitForm = async (
     ],
   });
 
+  const teacherName = newForm.advisor.name;
+  const teacherEmail = newForm.advisor.email;
+  if (!teacherName || !teacherEmail) {
+    throw new AppError(500, "false", "指導老師的姓名和email未載入");
+  }
+
+  const confirmToken = crypto.randomBytes(32).toString("hex");
+  const advisorDbToken = crypto
+    .createHash("sha256")
+    .update(confirmToken)
+    .digest("hex");
+
+  newForm.advisor.teacherConfirmToken = advisorDbToken;
+  newForm.advisor.teacherConfirmExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+  const teacherConfirmURL = `${process.env.FRONTEND_URL}/verify-teacher?token=${confirmToken}`;
+
+  try {
+    await sendTeacherConfirmEmail(teacherEmail, teacherName, teacherConfirmURL);
+  } catch (err) {
+    console.error("發送指導老師同意信失敗", err);
+
+    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+  }
+
+  const applicantName = newForm.contact?.name;
+  const applicantEmail = newForm.contact?.email;
+
+  if (!applicantName || !applicantEmail) {
+    throw new AppError(500, "false", "申請人資料不完整");
+  }
+
+  try {
+    await sendApplicantNotifyEmail(applicantEmail, applicantName, teacherName);
+  } catch (err) {
+    console.error("發送申請人通知信失敗", err);
+
+    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+  }
+
+  await newForm.save();
+
   //const editToken = newForm.editToken;
+  //不知道這邊會回傳甚麼，到時候可能要限制回傳的資料
   return handleSuccess(res, 201, "true", "新增成功", newForm);
 };
 

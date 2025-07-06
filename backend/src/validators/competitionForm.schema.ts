@@ -14,6 +14,11 @@ export const contactSchema = z.object({
   phone: z.string().min(5),
 });
 
+export const advisorSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
 export const competitionFormSchema = z
   .object({
     level: z.enum([
@@ -41,7 +46,7 @@ export const competitionFormSchema = z
     students: z.array(studentSubmissionSchema).min(1),
     evidenceFileUrls: z.array(z.string().url()).min(0),
     contact: contactSchema,
-    advisor: z.string().min(1),
+    advisor: advisorSchema,
   })
   .refine(
     (data) => {
