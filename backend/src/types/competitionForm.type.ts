@@ -51,7 +51,8 @@ export interface ICompetitionForm extends Document {
     | "resubmitted"
     | "approved"
     | "rejected"
-    | "expired";
+    | "expired"
+    | "reserved";
   revisionNote?: string;
   rejectedReason?: string;
   editToken: string;

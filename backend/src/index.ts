@@ -18,6 +18,8 @@ import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
 import authRoute from "./routes/auth.route";
 import userAdminRoute from "./routes/user.admin.route";
 import { AppError } from "./utils/AppError";
+import { startEmailQueueJob } from "./jobs/emailQueue.job";
+import { startAdvisorTokenExpiryJob } from "./jobs/advisorTokenExpiry.job";
 
 // 處理未捕捉的例外（同步錯誤）
 process.on("uncaughtException", (err) => {
@@ -99,6 +101,10 @@ app.use("/api/form/competition", competitionFormRoute);
 app.use("/api/admin/form/competition", competitionFormAdminRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/admin/users", userAdminRoute);
+
+/*  */
+startEmailQueueJob();
+startAdvisorTokenExpiryJob();
 
 /* app.use("/uploads", express.static(path.join(__dirname, "uploads"))); */
 

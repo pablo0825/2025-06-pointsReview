@@ -36,7 +36,7 @@ const HistorySchema = new mongoose.Schema({
 const advisorSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
-  isAgreed: { type: boolean },
+  isAgreed: { type: Boolean, default: false },
   teacherConfirmToken: { type: String, default: undefined },
   teacherConfirmExpires: { type: Date, default: undefined },
 });
@@ -78,6 +78,7 @@ const CompetitionFormSchema = new Schema<ICompetitionForm>({
       "approved",
       "rejected",
       "expired",
+      "reserved",
     ],
     required: true,
     default: "submitted",

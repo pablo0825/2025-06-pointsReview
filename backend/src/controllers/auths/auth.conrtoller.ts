@@ -272,6 +272,7 @@ export const forgetPassword = async (req: Request, res: Response) => {
     user: user.username || "user",
     detail: `${user.username} 使用者重設密碼`,
   });
+
   await user.save();
 
   handleSuccess(res, 200, "true", "重設密碼連結已寄出，請至信箱查收。", {});
@@ -309,6 +310,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       user: user.username || "user",
       detail: `${user.username} 使用者更新密碼成功`,
     });
+
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
 

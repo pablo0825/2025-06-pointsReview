@@ -7,8 +7,10 @@ import { handleSuccess } from "../utils/handleSuccess";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { sendTeacherConfirmEmail } from "../senders/sendTeacherConfirmEmail";
-import { sendApplicantNotifyEmail } from "../senders/sendApplicantNotifyEmail";
+import { EmailTaskDB } from "../models/emailTask.model";
+import { sendEmail } from "../senders/sendEmail";
+import TeacherConfirmEmail from "../emails/TeacherConfirmEmail";
+import ApplicantNotifyEmail from "../emails/ApplicantNotifyEmail";
 
 //提交新表單
 export const submitForm = async (
@@ -57,11 +59,29 @@ export const submitForm = async (
   const teacherConfirmURL = `${process.env.FRONTEND_URL}/verify-teacher?token=${confirmToken}`;
 
   try {
-    await sendTeacherConfirmEmail(teacherEmail, teacherName, teacherConfirmURL);
+    await sendEmail(
+      teacherEmail,
+      "請確認學生競賽申請表單",
+      <TeacherConfirmEmail
+        username={teacherName}
+        teacherConfirmURL={teacherConfirmURL}
+      />
+    );
   } catch (err) {
     console.error("發送指導老師同意信失敗", err);
 
-    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+    await EmailTaskDB.create({
+      formId: newForm._id,
+      to: teacherEmail,
+      subject: "請確認學生競賽申請表單",
+      templateName: "TeacherConfirmEmail",
+      templateData: {
+        username: teacherName,
+        teacherConfirmURL: teacherConfirmURL,
+      },
+    });
+
+    /* throw new AppError(500, "false", "郵件發送失敗，請稍後再試。"); */
   }
 
   const applicantName = newForm.contact?.name;
@@ -72,11 +92,29 @@ export const submitForm = async (
   }
 
   try {
-    await sendApplicantNotifyEmail(applicantEmail, applicantName, teacherName);
+    await sendEmail(
+      applicantEmail,
+      "表單已提交，等待指導老師確認",
+      <ApplicantNotifyEmail
+        username={applicantName}
+        teacherName={teacherName}
+      />
+    );
   } catch (err) {
     console.error("發送申請人通知信失敗", err);
 
-    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+    await EmailTaskDB.create({
+      formId: newForm._id,
+      to: applicantEmail,
+      subject: "表單已提交，等待指導老師確認",
+      templateName: "ApplicantNotifyEmail",
+      templateData: {
+        username: applicantName,
+        teacherName: teacherName,
+      },
+    });
+
+    /*  throw new AppError(500, "false", "郵件發送失敗，請稍後再試。"); */
   }
 
   await newForm.save();
@@ -95,6 +133,7 @@ export const getFormByToken = async (req: Request, res: Response) => {
   );
 
   if (!form) {
+    console.warn(`嘗試使用無效的token存取表單：${token}`);
     throw new AppError(404, "false", "找不到 editToken 對應的表單");
   }
 
@@ -107,9 +146,14 @@ export const getFormByToken = async (req: Request, res: Response) => {
     throw new AppError(403, "false", "編輯連結已過期");
   }
 
-  if (form.isLocked === true) {
+  if (form.isLocked) {
     throw new AppError(403, "false", "表單已鎖定");
   }
+
+  /* if (form.advisor.isAgreed !== true) {
+    throw new AppError(403, "false", "表單尚未取得指導老師同意");
+  }
+ */
 
   return handleSuccess(res, 200, "true", "取得表單", form);
 };
@@ -127,6 +171,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   const form = await CompetitionFormDB.findOne({ editToken: token });
 
   if (!form) {
+    console.warn(`嘗試使用無效的token存取表單：${token}`);
     throw new AppError(404, "false", "找不到 editToken 對應的表單");
   }
 
@@ -139,7 +184,7 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
     throw new AppError(403, "false", "編輯連結已過期");
   }
 
-  if (form.isLocked === true) {
+  if (form.isLocked) {
     throw new AppError(403, "false", "表單已鎖定");
   }
 
@@ -152,9 +197,28 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
     (url) => !keepFiles.includes(url)
   );
   for (const fileUrl of deletedFiles) {
-    const filePath = path.join(__dirname, "../storage", fileUrl);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath); // 從硬碟刪除
+    //const filePath = path.join(__dirname, "../storage", fileUrl);
+
+    if (!fileUrl.startsWith("/uploads/")) {
+      console.warn(`嘗試刪除非預期格式的檔案URL: ${fileUrl}`);
+      continue; // 跳過不安全的URL
+    }
+
+    const actualFilePath = path.join(
+      process.cwd(),
+      "storage",
+      fileUrl.replace("/uploads/", "")
+    );
+
+    if (fs.existsSync(actualFilePath)) {
+      try {
+        fs.unlinkSync(actualFilePath);
+        console.log(`已刪除檔案: ${actualFilePath}`);
+      } catch (err) {
+        console.error(`刪除檔案失敗: ${actualFilePath}`, err);
+      }
+    } else {
+      console.warn(`嘗試刪除不存在的檔案: ${actualFilePath}`);
     }
   }
 
@@ -182,4 +246,89 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   await form.save();
 
   return handleSuccess(res, 200, "true", "更新成功", form);
+};
+
+export const verifyAdvisorToken = async (req: Request, res: Response) => {
+  const token = req.params.token;
+  if (!token) {
+    throw new AppError(404, "false", "找不到 token ");
+  }
+
+  const hashedTokenFromRequest = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const form = await CompetitionFormDB.findOne({
+    "advisor.teacherConfirmToken": hashedTokenFromRequest,
+    "advisor.teacherConfirmExpires": { $gt: Date.now() },
+  });
+
+  if (!form) {
+    console.warn(`嘗試使用無效的token存取表單：${token}`);
+    throw new AppError(404, "false", "找不到表單");
+  }
+
+  form.history.push({
+    type: "updated",
+    timestamp: new Date(),
+    user: form.advisor.name || "advisor",
+    detail: `${form.advisor.name} 老師打開了 ${form._id} 表單`,
+  });
+
+  await form.save();
+
+  return handleSuccess(res, 200, "true", "取得token", form);
+};
+
+export const advisorConfirmedByToken = async (req: Request, res: Response) => {
+  const { token } = req.params;
+  if (!token) {
+    throw new AppError(404, "false", "找不到 token");
+  }
+
+  const { agreed } = req.body;
+  if (typeof agreed !== "boolean") {
+    throw new AppError(400, "false", "缺少或錯誤的 agreed 參數");
+  }
+
+  const hashedTokenFromRequest = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const form = await CompetitionFormDB.findOne({
+    "advisor.teacherConfirmToken": hashedTokenFromRequest,
+    "advisor.teacherConfirmExpires": { $gt: Date.now() },
+  });
+
+  if (!form) {
+    console.warn(`嘗試使用無效的token存取表單：${token}`);
+    throw new AppError(404, "false", "找不到表單");
+  }
+
+  if (typeof form.advisor.isAgreed === "boolean") {
+    throw new AppError(400, "false", "此連結已使用過，無法重複提交");
+  }
+
+  if (agreed === true) {
+    //寄信通知承辦人和申請人
+  } else {
+    form.status = "rejected";
+    //寄信通知申請人，指導老師拒絕
+  }
+
+  form.advisor.isAgreed = agreed;
+  form.history.push({
+    type: "updated",
+    timestamp: new Date(),
+    user: form.advisor.name || "advisor",
+    detail: `${form.advisor.name} 老師${
+      agreed ? "同意" : "不同意"
+    } ${form._id} 表單申請`,
+  });
+
+  await form.save();
+
+  return handleSuccess(res, 200, "true", "同意表單申請", form);
 };

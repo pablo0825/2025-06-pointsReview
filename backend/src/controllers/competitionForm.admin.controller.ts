@@ -65,7 +65,11 @@ export const reviseFormById = async (req: Request, res: Response) => {
     throw new AppError(404, "false", "找不到表單資料");
   }
 
-  if (form.isLocked === true) {
+  if (!form.advisor.isAgreed) {
+    throw new AppError(404, "false", "表單尚未取得指導老師同意，無法編輯");
+  }
+
+  if (form.isLocked) {
     throw new AppError(403, "false", "表單已鎖定");
   }
 
