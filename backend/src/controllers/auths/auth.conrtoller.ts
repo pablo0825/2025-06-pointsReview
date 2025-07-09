@@ -9,6 +9,7 @@ import { handleSuccess } from "../../utils/handleSuccess";
 import { RefreshTokenDB } from "../../models/refreshToken.models";
 import { sendResetPasswordEmail } from "../../senders/sendResetPasswordEmail";
 import crypto from "crypto";
+import { queueEmail } from "../../tasks/queueEmail";
 
 const authMiddleware = require("../../middlewares/auth.middleware");
 
@@ -264,7 +265,7 @@ export const forgetPassword = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("發送重設密碼郵件失敗:", err);
 
-    throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
+    // throw new AppError(500, "false", "郵件發送失敗，請稍後再試。");
   }
 
   user.history.push({
@@ -288,36 +289,32 @@ export const resetPassword = async (req: Request, res: Response) => {
     throw new AppError(401, "false", "請輸入新密碼。");
   }
 
-  try {
-    const hashedTokenFromRequest = crypto
-      .createHash("sha256")
-      .update(token)
-      .digest("hex");
+  const hashedTokenFromRequest = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
 
-    const user = await UserDB.findOne({
-      resetPasswordToken: hashedTokenFromRequest,
-      resetPasswordExpires: { $gt: Date.now() },
-      isDeleted: false,
-    });
-    if (!user) {
-      throw new AppError(404, "false", "使用者不存在");
-    }
-
-    const hashed = await bcrypt.hash(newPassword, 12);
-    user.password = hashed;
-    user.history.push({
-      timestamp: new Date(),
-      user: user.username || "user",
-      detail: `${user.username} 使用者更新密碼成功`,
-    });
-
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-
-    await user.save();
-
-    return handleSuccess(res, 200, "true", "密碼重設成功", {});
-  } catch (err) {
-    throw new AppError(400, "false", "Token 無效或已過期");
+  const user = await UserDB.findOne({
+    resetPasswordToken: hashedTokenFromRequest,
+    resetPasswordExpires: { $gt: Date.now() },
+    isDeleted: false,
+  });
+  if (!user) {
+    throw new AppError(404, "false", "使用者不存在");
   }
+
+  const hashed = await bcrypt.hash(newPassword, 12);
+  user.password = hashed;
+  user.history.push({
+    timestamp: new Date(),
+    user: user.username || "user",
+    detail: `${user.username} 使用者更新密碼成功`,
+  });
+
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+
+  await user.save();
+
+  return handleSuccess(res, 200, "true", "密碼重設成功", {});
 };

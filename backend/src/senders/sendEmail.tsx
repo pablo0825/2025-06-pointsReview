@@ -2,12 +2,8 @@ import nodemailer from "nodemailer";
 import { render } from "@react-email/render";
 import { ReactElement } from "react";
 
-export const sendEmail = async (
-  to: string,
-  subject: string,
-  EmailComponent: ReactElement
-) => {
-  const emailHtml = await render(EmailComponent);
+export const sendEmail = async (to: string, subject: string, html: string) => {
+  const emailHtml = await render(html);
 
   const transporter = nodemailer.createTransport({
     service: "gmail",

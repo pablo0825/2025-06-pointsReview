@@ -3,6 +3,8 @@ import {
   submitForm,
   getFormByToken,
   updatedFormByToKen,
+  verifyAdvisorToken,
+  advisorConfirmedByToken,
 } from "../controllers/competitionForm.controller";
 import { upload } from "../middlewares/upload.middleware";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
@@ -16,5 +18,7 @@ router.put(
   upload.array("files", 10),
   asyncHandler(updatedFormByToKen)
 );
+router.get("/verify-teacher/:token", asyncHandler(verifyAdvisorToken));
+router.post("/verify-teacher/:token", asyncHandler(advisorConfirmedByToken));
 
 export default router;

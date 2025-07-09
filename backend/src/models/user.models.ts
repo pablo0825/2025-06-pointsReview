@@ -13,7 +13,7 @@ const userSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true },
   roles: {
     type: String,
-    enum: ["user", "admin", "director", "noRole"],
+    enum: ["handle", "admin", "director", "noRole"],
     default: "noRole",
   },
   isDeleted: { type: Boolean, default: false },

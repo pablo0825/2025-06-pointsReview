@@ -36,7 +36,7 @@ const HistorySchema = new mongoose.Schema({
 const advisorSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
-  isAgreed: { type: Boolean, default: false },
+  isAgreed: { type: Boolean, default: undefined },
   teacherConfirmToken: { type: String, default: undefined },
   teacherConfirmExpires: { type: Date, default: undefined },
 });

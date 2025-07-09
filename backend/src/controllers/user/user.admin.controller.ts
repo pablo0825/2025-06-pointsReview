@@ -104,15 +104,39 @@ export const assignRoleById = async (req: Request, res: Response) => {
 
   let allowedRoles: string[] = [];
   if (curentUserRoles.includes("admin")) {
-    allowedRoles = ["user", "director", "noRole"];
+    allowedRoles = ["handle", "director", "noRole"];
   } else if (curentUserRoles.includes("director")) {
-    allowedRoles = ["user", "noRole"];
+    allowedRoles = ["handle", "noRole"];
   } else {
     throw new AppError(403, "false", "您沒有權限指派角色");
   }
 
   if (typeof role !== "string" || !allowedRoles.includes(role)) {
     throw new AppError(400, "false", "提供的角色不合法");
+  }
+
+  if (role === "handle") {
+    const existingHandle = await UserDB.findOne({
+      roles: "handle",
+      isDeleted: false,
+      _id: { $ne: id }, // 排除自己（防止誤判自己換一次 handle）
+    });
+
+    if (existingHandle) {
+      throw new AppError(400, "false", "系統中已經存在承辦人，無法重複指派");
+    }
+  }
+
+  if (role === "director") {
+    const existingDirector = await UserDB.findOne({
+      roles: "director",
+      isDeleted: false,
+      _id: { $ne: id }, // 排除自己（防止誤判自己換一次 handle）
+    });
+
+    if (existingDirector) {
+      throw new AppError(400, "false", "系統中已經存在主管，無法重複指派");
+    }
   }
 
   const user = await UserDB.findOne({ _id: id, isDeleted: false });
@@ -122,11 +146,11 @@ export const assignRoleById = async (req: Request, res: Response) => {
 
   const previousUserRole = user.roles;
 
-  if (user.roles.includes("admin") && !role.includes("admin")) {
+  if (user.roles === "admin" && role !== "admin") {
     throw new AppError(403, "false", "不能移除管理員身份");
   }
 
-  if (user.isDeleted === true) {
+  if (user.isDeleted) {
     throw new AppError(403, "false", "無法分配角色給已刪除的使用者");
   }
 
@@ -164,9 +188,9 @@ export const deleteUserById = async (req: Request, res: Response) => {
 
   let allowedRolesToDelete: string[] = [];
   if (curentUserRoles.includes("admin")) {
-    allowedRolesToDelete = ["user", "director", "noRole"];
+    allowedRolesToDelete = ["handle", "director", "noRole"];
   } else if (curentUserRoles.includes("director")) {
-    allowedRolesToDelete = ["user", "noRole"];
+    allowedRolesToDelete = ["handle", "noRole"];
   } else {
     throw new AppError(403, "false", "您沒有權限刪除任何使用者。");
   }
