@@ -11,13 +11,13 @@ import {
 interface Props {
   contactName: string;
   advisorName: string;
-  projectTitle: string;
+  contestName: string;
 }
 
 export default function TeacherRejectEmail({
   contactName,
   advisorName,
-  projectTitle,
+  contestName,
 }: Props) {
   return (
     <Html>
@@ -27,7 +27,7 @@ export default function TeacherRejectEmail({
         <Container>
           <Text>親愛的 {contactName} 同學，</Text>
           <Text>
-            您的競賽申請「{projectTitle}」已被指導老師 {advisorName} 拒絕。
+            您的競賽申請「{contestName}」已被指導老師 {advisorName} 拒絕。
           </Text>
           <Text>因此，本次申請將終止，請您與指導老師聯繫後，再重新申請</Text>
           <Text>謝謝您的配合</Text>

@@ -10,6 +10,7 @@ import {
   unlockFormById,
   deleteSingleFileById,
   downloadSingleFile,
+  resendTeacherToken,
 } from "../controllers/competitionForm.admin.controller";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
 
@@ -57,20 +58,20 @@ router.post(
 router.post(
   "/:id/lock",
   authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "director"]),
+  authMiddleware.hasPermission(["admin", "director"]),
   asyncHandler(lockFormById)
 );
 router.post(
   "/:id/unlock",
   authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "director"]),
+  authMiddleware.hasPermission(["admin", "director"]),
   asyncHandler(unlockFormById)
 );
 
 router.delete(
   "/:id/files",
   authMiddleware.authenticateToken,
-  authMiddleware.hasPermission("handle"),
+  authMiddleware.hasPermission("admin"),
   asyncHandler(deleteSingleFileById)
 );
 router.get(
@@ -78,6 +79,13 @@ router.get(
   authMiddleware.authenticateToken,
   authMiddleware.hasPermission(["handle", "admin", "director"]),
   asyncHandler(downloadSingleFile)
+);
+
+router.post(
+  "/:id/resend",
+  authMiddleware.authenticateToken,
+  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  asyncHandler(resendTeacherToken)
 );
 
 export default router;

@@ -29,7 +29,7 @@ export default function FormRejectEmail({
           <Text>您的點數申請未通過。</Text>
           <Text>未通過原因：${rejectedReason}</Text>
           <Text>因此，本次申請將終止。</Text>
-          <Text>謝謝您的配合</Text>
+          <Text>謝謝您的配合。</Text>
           <Text>或是您有任何疑問的話，可以聯絡承辦人：${handlEmail}</Text>
         </Container>
       </Body>

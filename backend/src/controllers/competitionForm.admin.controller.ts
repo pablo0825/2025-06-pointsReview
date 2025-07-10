@@ -13,6 +13,7 @@ import path from "path";
 import { queueFormEmail } from "../tasks/queueFormEmail";
 import { Types } from "mongoose";
 import { UserDB } from "../models/user.models";
+import crypto from "crypto";
 
 // 查詢所有表單
 export const getAllFormData = async (req: Request, res: Response) => {
@@ -191,7 +192,6 @@ export const approveFormById = async (req: Request, res: Response) => {
     bcc: [directorEmail, handleEmail],
   });
 
-  form.expirationDate = new Date();
   form.editToken = "";
   form.revisionNote = undefined;
   form.rejectedReason = undefined;
@@ -215,7 +215,6 @@ export const approveFormById = async (req: Request, res: Response) => {
 // form review reject
 export const rejectFormByID = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError(400, "false", "ID 格式錯誤");
   }
@@ -224,12 +223,15 @@ export const rejectFormByID = async (req: Request, res: Response) => {
   const { rejectedReason } = rejectedReasonSchema.parse(req.body);
 
   const form = await CompetitionFormDB.findById(id);
-
   if (!form) {
     throw new AppError(404, "false", "找不到表單資料");
   }
 
-  if (form.isLocked === true) {
+  if (!form.advisor.isAgreed) {
+    throw new AppError(400, "false", "表單尚未取得指導老師同意，無法編輯");
+  }
+
+  if (form.isLocked) {
     throw new AppError(403, "false", "表單已鎖定");
   }
 
@@ -270,13 +272,13 @@ export const rejectFormByID = async (req: Request, res: Response) => {
     templateName: "FormRejectEmail",
     templateData: {
       contactName: contactName,
+      contestName: contestName,
       rejectedReason: rejectedReason,
       handleEmail: handleEmail,
     },
     bcc: [directorEmail, handleEmail],
   });
 
-  form.expirationDate = new Date();
   form.editToken = "";
   form.revisionNote = undefined;
   form.rejectedReason = rejectedReason;
@@ -298,13 +300,11 @@ export const rejectFormByID = async (req: Request, res: Response) => {
 // extend the expiration date of a form
 export const extendExpiryDateById = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError(400, "false", "ID 格式錯誤");
   }
 
   const form = await CompetitionFormDB.findById(id);
-
   if (!form) {
     throw new AppError(404, "false", "找不到表單資料");
   }
@@ -322,15 +322,42 @@ export const extendExpiryDateById = async (req: Request, res: Response) => {
     throw new AppError(400, "false", "目前表單狀態不可以延期");
   }
 
+  const formId = (form._id as Types.ObjectId).toString();
+  const handleName = req.user?.name;
+  const handleEmail = req.user?.email;
+  const contactName = form.contact.name;
+  const contactEmail = form.contact.email;
+  const contestName = form.name;
   const oldExpirationDate = form.expirationDate;
-  const userName = req.user?.name || "未知使用者";
+  const newExpirationDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const editToken = form.editToken;
 
-  form.expirationDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const studentEditURL = `${process.env.FRONTEND_URL}/edit/${editToken}`;
+
+  if (!handleEmail) {
+    throw new AppError(403, "false", "無法取得承辦人 email");
+  }
+
+  await queueFormEmail({
+    formId: formId,
+    to: contactEmail,
+    subject: `${contestName} 點數申請「延長」通知`,
+    templateName: "EditTokenExtendEmail",
+    templateData: {
+      contactName: contactName,
+      contestName: contestName,
+      handlEmail: handleEmail,
+      url: studentEditURL,
+      date: newExpirationDate.toISOString(),
+    },
+  });
+
+  form.expirationDate = newExpirationDate;
   form.updatedAt = new Date();
   form.history.push({
     type: "note_added",
     timestamp: new Date(),
-    user: userName,
+    user: handleName || "未知使用者",
     detail: `延長有效期限\n從：${oldExpirationDate.toISOString()}\n至：${form.expirationDate.toISOString()}`,
   });
 
@@ -515,4 +542,84 @@ export const downloadSingleFile = async (req: Request, res: Response) => {
       return res.status(500).send("檔案下載失敗");
     }
   });
+};
+
+// 重發教師token
+export const resendTeacherToken = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new AppError(400, "false", "ID 格式錯誤");
+  }
+
+  const form = await CompetitionFormDB.findById(id);
+  if (!form) {
+    throw new AppError(404, "false", "找不到表單資料");
+  }
+
+  if (form.status !== "submitted") {
+    throw new AppError(
+      400,
+      "false",
+      "表單狀態不允許此操作，連結可能已失效或使用過。"
+    );
+  }
+
+  if (typeof form.advisor.isAgreed === "boolean") {
+    throw new AppError(400, "false", "此連結已使用過，無法重複提交");
+  }
+
+  if (form.isLocked) {
+    throw new AppError(403, "false", "表單已鎖定");
+  }
+
+  const teacherToken = crypto.randomBytes(32).toString("hex");
+  const advisorDbToken = crypto
+    .createHash("sha256")
+    .update(teacherToken)
+    .digest("hex");
+
+  const formId = (form._id as Types.ObjectId).toString();
+  const handleName = req.user?.name;
+  const teacherName = form.advisor.name;
+  const teacherEmail = form.advisor.email;
+  const status = "submitted";
+  const newExpirationDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const contestLevel = form.level;
+  const contestName = form.name;
+  const contestGroup = form.group;
+  const contestAward = form.award;
+  const contactName = form.contact.name;
+
+  const url = `${process.env.FRONTEND_URL}/verify-teacher?token=${teacherToken}`;
+
+  await queueFormEmail({
+    formId: formId,
+    to: teacherEmail,
+    subject: "請確認學生競賽申請表單(新)",
+    templateName: "TeacherConfirmEmail",
+    templateData: {
+      teacherName: teacherName,
+      url: url,
+      level: contestLevel,
+      contestName: contestName,
+      contestGroup: contestGroup,
+      contestAward: contestAward,
+      contactName: contactName,
+    },
+  });
+
+  form.status = status;
+  form.advisor.teacherConfirmToken = advisorDbToken;
+  form.advisor.teacherConfirmExpires = newExpirationDate;
+  form.updatedAt = new Date();
+  form.history.push({
+    type: "note_added",
+    timestamp: new Date(),
+    user: handleName || "未知使用者",
+    detail: `${teacherName} 老師申請新的token連結`,
+  });
+
+  await form.save();
+
+  return handleSuccess(res, 200, "true", "重發老師token", form);
 };

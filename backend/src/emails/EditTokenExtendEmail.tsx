@@ -1,4 +1,4 @@
-// TeacherAgreesEmail.tsx
+// EditTokenExtendEmail.tsx
 import {
   Html,
   Head,
@@ -12,30 +12,27 @@ import {
 interface Props {
   contactName: string;
   contestName: string;
-  revisionNote: String;
   url: string;
   handlEmail: String;
+  date: string;
 }
 
-export default function FormRevisionEmail({
+export default function EditTokenExtendEmail({
   contactName,
   contestName,
-  revisionNote,
   handlEmail,
   url,
+  date,
 }: Props) {
   return (
     <Html>
       <Head />
-      <Preview>競賽申請「{contestName}」表單退件</Preview>
+      <Preview>{contestName} 點數申請「延長」通知</Preview>
       <Body style={{ fontFamily: "Helvetica, Arial, sans-serif" }}>
         <Container>
           <Text>親愛的 {contactName} 同學您好，</Text>
-          <Text>您的競賽申請「{contestName}」被承辦人退件。</Text>
-          <Text>退件原因：${revisionNote}</Text>
-          <Text>
-            請您按照上述原因，修改表單後再送出(可從下方連結修改表單)。
-          </Text>
+          <Text>您的點數申請已延長至{date}。</Text>
+          <Text>麻煩您在時間內，修改表單後再送出(可從下方連結修改表單)。</Text>
           <Text>表單修改連結：</Text>
           <Link href={url}>{url}</Link>
           <Text>感謝您的配合。</Text>

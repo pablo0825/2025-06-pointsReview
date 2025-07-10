@@ -50,7 +50,11 @@ export const submitForm = async (req: Request, res: Response) => {
   const teacherEmail = newForm.advisor.email;
   const contactName = newForm.contact?.name;
   const contactEmail = newForm.contact?.email;
-  const teacherConfirmURL = `${process.env.FRONTEND_URL}/verify-teacher?token=${confirmToken}`;
+  const url = `${process.env.FRONTEND_URL}/verify-teacher?token=${confirmToken}`;
+  const contestLevel = newForm.level;
+  const contestName = newForm.name;
+  const contestGroup = newForm.group;
+  const contestAward = newForm.award;
 
   await Promise.all([
     queueFormEmail({
@@ -59,17 +63,22 @@ export const submitForm = async (req: Request, res: Response) => {
       subject: "請確認學生競賽申請表單",
       templateName: "TeacherConfirmEmail",
       templateData: {
-        username: teacherName,
-        teacherConfirmURL,
+        teacherName: teacherName,
+        url: url,
+        level: contestLevel,
+        contestName: contestName,
+        contestGroup: contestGroup,
+        contestAward: contestAward,
+        contactName: contactName,
       },
     }),
     queueFormEmail({
       formId: formId,
-      to: contactName,
+      to: contactEmail,
       subject: "表單已提交，等待指導老師確認",
       templateName: "ApplicantNotifyEmail",
       templateData: {
-        username: contactEmail,
+        contactName: contactName,
         teacherName: teacherName,
       },
     }),
@@ -301,11 +310,11 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
   }
 
   const formId = (form._id as Types.ObjectId).toString();
-  const formStatu = form.status;
+  const formStatus = form.status;
   const contactName = form.contact.name;
   const contactEmail = form.contact.email;
   const advisorName = form.advisor.name;
-  const projectTitle = form.name;
+  const contestName = form.name;
   const handleName = user.username;
   const handlEmail = user.email;
 
@@ -319,7 +328,7 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
         templateData: {
           contactName: contactName,
           advisorName: advisorName,
-          projectTitle: projectTitle,
+          contestName: contestName,
         },
       }),
       queueFormEmail({
@@ -329,8 +338,8 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
         templateName: "ReviewReminderEmail",
         templateData: {
           formId: formId,
-          userName: handleName,
-          status: formStatu,
+          handleName: handleName,
+          status: formStatus,
         },
       }),
     ]);
@@ -344,7 +353,7 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
       templateData: {
         contactName: contactName,
         advisorName: advisorName,
-        projectTitle: projectTitle,
+        contestName: contestName,
       },
     });
   }

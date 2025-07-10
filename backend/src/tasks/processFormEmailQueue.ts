@@ -67,7 +67,21 @@ export const processFormEmailQueue = async () => {
         );
 
         await CompetitionFormDB.findByIdAndUpdate(task.formId, {
-          status: "reserved",
+          advisor: {
+            teacherConfirmToken: undefined,
+            teacherConfirmExpires: undefined,
+          },
+          status: "rejected",
+          editToken: "",
+          isLocked: true,
+          rejectedReason:
+            "本次申請因為寄信三次皆失敗，因此終止本次申請，並封存表單",
+          history: {
+            type: "updated",
+            timestamp: new Date(),
+            user: "系統",
+            detail: "本次申請因為寄信三次皆失敗，因此終止本次申請，並封存表單",
+          },
         });
       }
     }
