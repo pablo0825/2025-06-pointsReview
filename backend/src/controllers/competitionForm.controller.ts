@@ -5,7 +5,7 @@ import { getChangedFields } from "../utils/getChangedFields";
 import { AppError } from "../utils/AppError";
 import { handleSuccess } from "../utils/handleSuccess";
 import crypto from "crypto";
-import { queueEmail } from "../tasks/queueEmail";
+import { queueFormEmail } from "../tasks/queueFormEmail";
 import { Types } from "mongoose";
 import { deleteObsoleteFiles } from "../utils/deleteObsoleteFiles";
 import { UserDB } from "../models/user.models";
@@ -48,12 +48,12 @@ export const submitForm = async (req: Request, res: Response) => {
   const formId = (newForm._id as Types.ObjectId).toString();
   const teacherName = newForm.advisor.name;
   const teacherEmail = newForm.advisor.email;
-  const applicantName = newForm.contact?.name;
-  const applicantEmail = newForm.contact?.email;
+  const contactName = newForm.contact?.name;
+  const contactEmail = newForm.contact?.email;
   const teacherConfirmURL = `${process.env.FRONTEND_URL}/verify-teacher?token=${confirmToken}`;
 
   await Promise.all([
-    queueEmail({
+    queueFormEmail({
       formId: formId,
       to: teacherEmail,
       subject: "請確認學生競賽申請表單",
@@ -63,13 +63,13 @@ export const submitForm = async (req: Request, res: Response) => {
         teacherConfirmURL,
       },
     }),
-    queueEmail({
+    queueFormEmail({
       formId: formId,
-      to: applicantEmail,
+      to: contactName,
       subject: "表單已提交，等待指導老師確認",
       templateName: "ApplicantNotifyEmail",
       templateData: {
-        username: applicantName,
+        username: contactEmail,
         teacherName: teacherName,
       },
     }),
@@ -106,12 +106,15 @@ export const getFormByToken = async (req: Request, res: Response) => {
     throw new AppError(403, "false", "表單已鎖定");
   }
 
+  const formId = form._id;
+  const contactName = form.contact?.name;
+
   form.updatedAt = new Date();
   form.history.push({
     type: "updated",
     timestamp: new Date(),
-    user: form.contact?.name || "user",
-    detail: "申請人打開表單",
+    user: contactName || "user",
+    detail: `申請人打開 ${formId} 表單`,
   });
 
   await form.save();
@@ -176,25 +179,27 @@ export const updatedFormByToKen = async (req: Request, res: Response) => {
   const formId = (form._id as Types.ObjectId).toString();
   const handleName = user.username;
   const handlemail = user.email;
+  const contactName = formData.contact?.name;
+  const formStatu = "resubmitted";
 
-  await queueEmail({
-    formId: (form._id as Types.ObjectId).toString(),
+  await queueFormEmail({
+    formId: formId,
     to: handlemail,
     subject: "提醒您，有一筆申請等待您的審查",
     templateName: "ReviewReminderEmail",
     templateData: {
       formId: formId,
       userName: handleName,
-      status: "resubmitted",
+      status: formStatu,
     },
   });
 
-  form.status = "resubmitted";
+  form.status = formStatu;
   form.updatedAt = new Date();
   form.history.push({
     type: "updated",
     timestamp: new Date(),
-    user: formData.contact?.name || "user",
+    user: contactName || "user",
     detail: changedFields.length
       ? `使用者更新了欄位：${changedFields.join(", ")}`
       : "使用者提交了表單但無變更",
@@ -236,11 +241,14 @@ export const verifyAdvisorToken = async (req: Request, res: Response) => {
     );
   }
 
+  const formId = form._id;
+  const teacherName = form.advisor.name;
+
   form.history.push({
     type: "updated",
     timestamp: new Date(),
-    user: form.advisor.name || "advisor",
-    detail: `${form.advisor.name} 老師打開了 ${form._id} 表單`,
+    user: teacherName || "advisor",
+    detail: `${teacherName} 老師打開了 ${formId} 表單`,
   });
 
   await form.save();
@@ -299,11 +307,11 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
   const advisorName = form.advisor.name;
   const projectTitle = form.name;
   const handleName = user.username;
-  const handlemail = user.email;
+  const handlEmail = user.email;
 
   if (agreed) {
     await Promise.all([
-      queueEmail({
+      queueFormEmail({
         formId: formId,
         to: contactEmail,
         subject: "指導老師已同意競賽申請表單",
@@ -314,9 +322,9 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
           projectTitle: projectTitle,
         },
       }),
-      queueEmail({
+      queueFormEmail({
         formId: formId,
-        to: handlemail,
+        to: handlEmail,
         subject: "提醒您，有一筆申請等待您的審查",
         templateName: "ReviewReminderEmail",
         templateData: {
@@ -328,7 +336,7 @@ export const advisorConfirmedByToken = async (req: Request, res: Response) => {
     ]);
   } else {
     form.status = "rejected";
-    await queueEmail({
+    await queueFormEmail({
       formId: formId,
       to: contactEmail,
       subject: "指導老師已拒絕競賽申請表單",

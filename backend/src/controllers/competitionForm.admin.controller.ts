@@ -10,6 +10,9 @@ import { AppError } from "../utils/AppError";
 import { handleSuccess } from "../utils/handleSuccess";
 import fs from "fs";
 import path from "path";
+import { queueFormEmail } from "../tasks/queueFormEmail";
+import { Types } from "mongoose";
+import { UserDB } from "../models/user.models";
 
 // 查詢所有表單
 export const getAllFormData = async (req: Request, res: Response) => {
@@ -51,22 +54,19 @@ export const getFormById = async (req: Request, res: Response) => {
 // 把form status設定為補件
 export const reviseFormById = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError(400, "false", "ID 格式錯誤");
   }
 
-  //解析revisionNote
   const { revisionNote } = reviseNoteSchema.parse(req.body);
 
   const form = await CompetitionFormDB.findById(id);
-
   if (!form) {
     throw new AppError(404, "false", "找不到表單資料");
   }
 
   if (!form.advisor.isAgreed) {
-    throw new AppError(404, "false", "表單尚未取得指導老師同意，無法編輯");
+    throw new AppError(400, "false", "表單尚未取得指導老師同意，無法編輯");
   }
 
   if (form.isLocked) {
@@ -74,20 +74,43 @@ export const reviseFormById = async (req: Request, res: Response) => {
   }
 
   if (!["resubmitted", "submitted"].includes(form.status)) {
-    throw new AppError(400, "false", "目前表單狀態不可審核");
+    throw new AppError(400, "false", "目前表單狀態不可設定為補件");
   }
 
-  const userName = req.user?.name || "未知使用者";
+  const formId = (form._id as Types.ObjectId).toString();
+  const handleName = req.user?.name;
+  const handlEmail = req.user?.email;
+  const contactName = form.contact.name;
+  const contactEmail = form.contact.email;
+  const formStatus = "needs_revision";
+  const contestName = form.name;
+  const editToken = form.editToken;
+
+  const studentEditURL = `${process.env.FRONTEND_URL}/edit/${editToken}`;
+
+  await queueFormEmail({
+    formId: formId,
+    to: contactEmail,
+    subject: `${contestName} 點數申請退件通知`,
+    templateName: "FormRevisionEmail",
+    templateData: {
+      projectTitle: contestName,
+      contactName: contactName,
+      revisionNote: revisionNote,
+      url: studentEditURL,
+      handlEmail: handlEmail,
+    },
+  });
 
   form.revisionNote = revisionNote;
   form.expirationDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  form.status = "needs_revision";
+  form.status = formStatus;
   form.updatedAt = new Date();
   form.history.push({
     type: "status_changed",
     timestamp: new Date(),
-    user: userName,
-    detail: `補件：${revisionNote}`,
+    user: handleName || "未知承辦人",
+    detail: `退件原因：${revisionNote}`,
   });
 
   await form.save();
@@ -98,41 +121,91 @@ export const reviseFormById = async (req: Request, res: Response) => {
 // form review approve
 export const approveFormById = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError(400, "false", "ID 格式錯誤");
   }
 
   const form = await CompetitionFormDB.findById(id);
-
   if (!form) {
     throw new AppError(404, "false", "找不到表單資料");
   }
 
-  if (form.isLocked === true) {
+  if (!form.advisor.isAgreed) {
+    throw new AppError(400, "false", "表單尚未取得指導老師同意，無法編輯");
+  }
+
+  if (form.isLocked) {
     throw new AppError(403, "false", "表單已鎖定");
   }
 
   if (!["resubmitted", "submitted"].includes(form.status)) {
-    throw new AppError(400, "false", "目前表單狀態不可審核");
+    throw new AppError(400, "false", "目前表單狀態不可設定為核准");
   }
 
   if (form.status === "approved") {
     throw new AppError(400, "false", "表單已核准，無需重複核准");
   }
 
-  const userName = req.user?.name || "未知使用者";
+  const director = await UserDB.findOne({
+    roles: "director",
+    isDeleted: false,
+  });
+  if (!director) {
+    throw new AppError(404, "false", "找不到主管");
+  }
 
+  const formId = (form._id as Types.ObjectId).toString();
+  const handleName = req.user?.name;
+  const handleEmail = req.user?.email;
+  const contactName = form.contact.name;
+  const contactEmail = form.contact.email;
+  const formStatus = "approved";
+  const contestLevel = form.level;
+  const contestName = form.name;
+  const contestGroup = form.group;
+  const contestAward = form.award;
+  const totalPoints = form.totalPoints;
+  const teacherName = form.advisor.name;
+  const students = form.students;
+  const directorEmail = director.email;
+
+  if (!handleEmail) {
+    throw new AppError(403, "false", "無法取得使用者 email");
+  }
+
+  await queueFormEmail({
+    formId: formId,
+    to: contactEmail,
+    subject: `${contestName} 點數申請「核准」通知`,
+    templateName: "FormApprovedEmail",
+    templateData: {
+      level: contestLevel,
+      contestName: contestName,
+      contestGroup: contestGroup,
+      contestAward: contestAward,
+      totalPoints: totalPoints,
+      teacherName: teacherName,
+      students: students,
+      contactName: contactName,
+    },
+    bcc: [directorEmail, handleEmail],
+  });
+
+  form.expirationDate = new Date();
+  form.editToken = "";
   form.revisionNote = undefined;
+  form.rejectedReason = undefined;
   form.isLocked = true;
-  form.status = "approved";
+  form.status = formStatus;
   form.updatedAt = new Date();
   form.history.push({
     type: "status_changed",
     timestamp: new Date(),
-    user: userName,
+    user: handleName || "未知承辦人",
     detail: "表單核准通過",
   });
+
+  // 怎麼核准的點數，匯到另一個資料庫中?
 
   await form.save();
 
@@ -168,16 +241,52 @@ export const rejectFormByID = async (req: Request, res: Response) => {
     throw new AppError(400, "false", "表單未通過，無法重複審核");
   }
 
-  const userName = req.user?.name || "未知使用者";
+  const director = await UserDB.findOne({
+    roles: "director",
+    isDeleted: false,
+  });
+  if (!director) {
+    throw new AppError(404, "false", "找不到主管");
+  }
 
+  const formId = (form._id as Types.ObjectId).toString();
+  const handleName = req.user?.name;
+  const handleEmail = req.user?.email;
+  const contactName = form.contact.name;
+  const contactEmail = form.contact.email;
+  const formStatus = "rejected";
+  const contestName = form.name;
+
+  const directorEmail = director.email;
+
+  if (!handleEmail) {
+    throw new AppError(403, "false", "無法取得承辦人 email");
+  }
+
+  await queueFormEmail({
+    formId: formId,
+    to: contactEmail,
+    subject: `${contestName} 點數申請「未通過」通知`,
+    templateName: "FormRejectEmail",
+    templateData: {
+      contactName: contactName,
+      rejectedReason: rejectedReason,
+      handleEmail: handleEmail,
+    },
+    bcc: [directorEmail, handleEmail],
+  });
+
+  form.expirationDate = new Date();
+  form.editToken = "";
+  form.revisionNote = undefined;
   form.rejectedReason = rejectedReason;
   form.isLocked = true;
-  form.status = "rejected";
+  form.status = formStatus;
   form.updatedAt = new Date();
   form.history.push({
     type: "status_changed",
     timestamp: new Date(),
-    user: userName,
+    user: handleName || "未知承辦人",
     detail: `未通過原因：${rejectedReason}`,
   });
 

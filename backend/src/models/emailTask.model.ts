@@ -9,6 +9,7 @@ const emailTaskSchema = new Schema({
     required: true,
   },
   to: { type: String, required: true },
+  bcc: { type: [String] },
   subject: { type: String, required: true },
   templateName: { type: String, required: true },
   templateData: { type: mongoose.Schema.Types.Mixed, required: true },

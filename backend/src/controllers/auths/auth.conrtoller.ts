@@ -9,7 +9,7 @@ import { handleSuccess } from "../../utils/handleSuccess";
 import { RefreshTokenDB } from "../../models/refreshToken.models";
 import { sendResetPasswordEmail } from "../../senders/sendResetPasswordEmail";
 import crypto from "crypto";
-import { queueEmail } from "../../tasks/queueEmail";
+import { queueFormEmail } from "../../tasks/queueFormEmail";
 
 const authMiddleware = require("../../middlewares/auth.middleware");
 

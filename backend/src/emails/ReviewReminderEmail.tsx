@@ -27,7 +27,7 @@ export default function ReviewReminderEmail({
         <Container>
           <Text>{userName} 承辦人，</Text>
           <Text>提醒您，有一筆表單編號：{formId}</Text>
-          <Text>{status}</Text>
+          <Text>狀態：{status}</Text>
           <Text>等待您的審查，請您盡速處理</Text>
         </Container>
       </Body>

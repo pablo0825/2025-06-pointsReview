@@ -26,7 +26,7 @@ const getTransporter = () => {
   return transporter;
 };
 
-export const processEmailQueue = async () => {
+export const processFormEmailQueue = async () => {
   const pendingTasks = await EmailTaskDB.find({ status: "pending" }).limit(10);
   const activeTransporter = getTransporter();
 

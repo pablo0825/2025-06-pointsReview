@@ -4,9 +4,9 @@ import { ICompetitionForm, IStudent } from "../types/competitionForm.type";
 import { boolean } from "zod";
 
 const StudentSchema = new mongoose.Schema({
-  class: { type: String, required: true },
-  studentId: { type: String, required: true },
-  name: { type: String, required: true },
+  class: { type: String, required: true }, //班級
+  studentId: { type: String, required: true }, //學號
+  name: { type: String, required: true }, //姓名
 
   pointSubmitted: { type: Number, required: true, min: 0 }, //提交點數
   //pointApproved: { type: Number, min: 0 }, // 核准點數
