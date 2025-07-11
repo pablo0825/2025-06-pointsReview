@@ -1,7 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import { ICompetitionForm, IStudent } from "../types/competitionForm.type";
-import { boolean } from "zod";
 
 const StudentSchema = new mongoose.Schema({
   class: { type: String, required: true }, //班級
