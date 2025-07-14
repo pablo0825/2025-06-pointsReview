@@ -9,9 +9,9 @@ export interface IHistory {
 }
 
 export interface IGroup {
-  contest: number;
-  project: number;
-  certificates: number;
+  contest?: number;
+  project?: number;
+  certificates?: number;
 }
 
 export interface IPointsTable extends Document {
