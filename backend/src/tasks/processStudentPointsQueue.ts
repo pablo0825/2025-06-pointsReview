@@ -1,39 +1,40 @@
 // processStudentPointsQueue.ts
 import { pointsTableDB } from "../models/pointsTable.models";
 import { PointsTaskDB } from "../models/pointsTask.models";
+import { UserDB } from "../models/user.models";
+import { AppError } from "../utils/AppError";
+import { queueFormEmail } from "./queueFormEmail";
 
 export const processStudentPointsQueue = async () => {
   const pendingTasks = await PointsTaskDB.find({ status: "pending" }).limit(10);
 
   for (const task of pendingTasks) {
+    const { formId, studentId, points, name } = task;
     try {
-      task.status = "processing";
-      await task.save();
-
-      const studentId = task.studentId;
-      const points = task.points;
-
       const user = await pointsTableDB.findOne({
         studentId: studentId,
         isLocked: false,
       });
       if (!user) {
-        console.log("找不到使用者");
+        console.log(`找不到學生 ${studentId}`);
+        task.err = "找不到使用者";
+        await task.save();
         continue;
       }
 
-      user.group = user.group || {};
+      user.group =
+        typeof user.group === "object" && user.group !== null ? user.group : {};
 
-      const currentContestPoints =
+      const current =
         typeof user.group.contest === "number" ? user.group.contest : 0;
-      const newContestPoints = currentContestPoints + points;
+      const updated = current + points;
 
-      user.group.contest = newContestPoints;
+      user.group = { ...user.group, contest: updated };
       user.history.push({
         type: "status_changed",
         timestamp: new Date(),
         user: user.name || "未知學生",
-        detail: `原點數：${currentContestPoints}，新點數：${newContestPoints}`,
+        detail: `原點數：${current}，新點數：${updated}`,
       });
 
       await user.save();
@@ -43,18 +44,49 @@ export const processStudentPointsQueue = async () => {
 
       await task.save();
     } catch (err) {
-      console.error(`處理任務 ${task._id} 失敗:`, err);
+      console.error(`任務 ${task._id} 處理失敗，第 ${task.retries} 次：`, err);
 
-      if (task.status === "processing") task.status = "pending";
+      task.retries += 1;
 
-      if (task.retries < task.maxRetries) task.retries += 1;
+      if (task.retries >= task.maxRetries) {
+        task.status = "failed";
+        const originalError = err instanceof Error ? err.message : "未知錯誤";
+        task.err = `三次錯誤，通知承辦人處理（最後錯誤：${originalError}）`;
 
-      if (task.retries > task.maxRetries) task.status = "failed";
+        const director = await UserDB.findOne({
+          roles: "director",
+          isDeleted: false,
+        });
+        const handle = await UserDB.findOne({
+          roles: "handle",
+          isDeleted: false,
+        });
 
-      if (err instanceof Error) {
-        task.err = err.message;
+        if (!director || !handle) {
+          console.error("找不到主管或承辦人，無法發送錯誤通知");
+        } else {
+          const handleName = handle.username;
+          const handleEmail = handle.email;
+          const directorEmail = director.email;
+
+          await queueFormEmail({
+            formId: formId.toString(),
+            to: handleEmail,
+            subject: "點數申請「異常」通知",
+            templateName: "pointsErrorEmail",
+            templateData: {
+              handleName,
+              formId,
+              studentId,
+              name,
+              points,
+            },
+            bcc: [directorEmail],
+          });
+        }
       } else {
-        task.err = "未知錯誤";
+        task.status = "pending";
+        task.err = err instanceof Error ? err.message : "未知錯誤";
       }
 
       await task.save();

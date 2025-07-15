@@ -16,7 +16,7 @@ const pointsTaskSchema = new Schema(
     maxRetries: { type: Number, default: 3 },
     status: {
       type: String,
-      enum: ["pending", "processing", "success", "failed"],
+      enum: ["pending", "success", "failed"],
       default: "pending",
     },
     err: { type: String, default: undefined },

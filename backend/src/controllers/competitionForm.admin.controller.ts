@@ -191,6 +191,11 @@ export const approveFormById = async (req: Request, res: Response) => {
           return;
         }
 
+        user.group =
+          typeof user.group === "object" && user.group !== null
+            ? user.group
+            : {};
+
         const current =
           typeof user.group?.contest === "number" ? user.group.contest : 0;
         const updated = current + points;
