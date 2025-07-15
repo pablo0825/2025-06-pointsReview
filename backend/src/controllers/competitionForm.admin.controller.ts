@@ -178,47 +178,44 @@ export const approveFormById = async (req: Request, res: Response) => {
     throw new AppError(403, "false", "無法取得使用者 email");
   }
 
-  for (const key of students) {
-    const studentId = key.studentId;
-    const points = key.pointSubmitted;
-    const name = key.name;
-    try {
-      const user = await pointsTableDB.findOne({
-        studentId: studentId,
-        isLocked: false,
-      });
-      if (!user) {
-        console.log("找不到使用者");
-        continue;
+  await Promise.allSettled(
+    students.map(async (student) => {
+      const { studentId, pointSubmitted: points, name } = student;
+      try {
+        const user = await pointsTableDB.findOne({
+          studentId,
+          isLocked: false,
+        });
+        if (!user) {
+          console.log(`找不到學生 ${studentId}`);
+          return;
+        }
+
+        const current =
+          typeof user.group?.contest === "number" ? user.group.contest : 0;
+        const updated = current + points;
+
+        user.group = { ...user.group, contest: updated };
+        user.history.push({
+          type: "status_changed",
+          timestamp: new Date(),
+          user: user.name || "未知學生",
+          detail: `原點數：${current}，新點數：${updated}`,
+        });
+
+        await user.save();
+      } catch (err) {
+        console.error(`處理學生 ${studentId} 錯誤:`, err);
+        await PointsTaskDB.create({
+          formId,
+          studentId,
+          name,
+          points,
+          err: String(err) || "未知錯誤",
+        });
       }
-
-      user.group = user.group || {};
-
-      const currentContestPoints =
-        typeof user.group.contest === "number" ? user.group.contest : 0;
-      const newContestPoints = currentContestPoints + points;
-
-      user.group.contest = newContestPoints;
-      user.history.push({
-        type: "status_changed",
-        timestamp: new Date(),
-        user: user.name || "未知學生",
-        detail: `原點數：${currentContestPoints}，新點數：${newContestPoints}`,
-      });
-
-      await user.save();
-    } catch (err) {
-      console.log(`處理學生 ${studentId} 時發生錯誤:`, err);
-
-      await PointsTaskDB.create({
-        formId,
-        studentId,
-        name,
-        points,
-        err: err || "未知錯誤",
-      });
-    }
-  }
+    })
+  );
 
   await queueFormEmail({
     formId: formId,
@@ -243,7 +240,6 @@ export const approveFormById = async (req: Request, res: Response) => {
   form.rejectedReason = undefined;
   form.isLocked = true;
   form.status = formStatus;
-  form.updatedAt = new Date();
   form.history.push({
     type: "status_changed",
     timestamp: new Date(),
