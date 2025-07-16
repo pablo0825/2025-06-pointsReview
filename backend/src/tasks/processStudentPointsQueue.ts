@@ -1,5 +1,5 @@
 // processStudentPointsQueue.ts
-import { pointsTableDB } from "../models/pointsTable.models";
+import { PointsTableDB } from "../models/pointsTable.models";
 import { PointsTaskDB } from "../models/pointsTask.models";
 import { UserDB } from "../models/user.models";
 import { AppError } from "../utils/AppError";
@@ -11,7 +11,7 @@ export const processStudentPointsQueue = async () => {
   for (const task of pendingTasks) {
     const { formId, studentId, points, name } = task;
     try {
-      const user = await pointsTableDB.findOne({
+      const user = await PointsTableDB.findOne({
         studentId: studentId,
         isLocked: false,
       });

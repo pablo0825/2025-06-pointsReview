@@ -3,7 +3,7 @@ import { render } from "@react-email/render";
 import TeacherConfirmEmail from "../emails/TeacherConfirmEmail";
 import ApplicantNotifyEmail from "../emails/ApplicantNotifyEmail";
 import { JSX } from "react";
-import ReviewReminderEmail from "../emails/reviewReminderEmail";
+import ReviewReminderEmail from "../emails/ReviewReminderEmail";
 import TeacherAgreesEmail from "../emails/TeacherAgreesEmail";
 import TeacherRejectEmail from "../emails/TeacherRejectEmail";
 

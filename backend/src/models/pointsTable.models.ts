@@ -69,7 +69,7 @@ pointsTableSchema.pre(
   }
 );
 
-export const pointsTableDB = mongoose.model<IPointsTable>(
+export const PointsTableDB = mongoose.model<IPointsTable>(
   "pointsTable",
   pointsTableSchema
 );

@@ -14,7 +14,7 @@ import { queueFormEmail } from "../tasks/queueFormEmail";
 import { Types } from "mongoose";
 import { UserDB } from "../models/user.models";
 import crypto from "crypto";
-import { pointsTableDB } from "../models/pointsTable.models";
+import { PointsTableDB } from "../models/pointsTable.models";
 import { number } from "zod";
 import { use } from "react";
 import { PointsTaskDB } from "../models/pointsTask.models";
@@ -182,7 +182,7 @@ export const approveFormById = async (req: Request, res: Response) => {
     students.map(async (student) => {
       const { studentId, pointSubmitted: points, name } = student;
       try {
-        const user = await pointsTableDB.findOne({
+        const user = await PointsTableDB.findOne({
           studentId,
           isLocked: false,
         });
