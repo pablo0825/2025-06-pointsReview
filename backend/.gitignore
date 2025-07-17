@@ -21,3 +21,5 @@ coverage/
 .cache/
 
 /backend/storage/uploads/
+
+.env

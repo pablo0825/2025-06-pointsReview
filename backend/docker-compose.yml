@@ -1,0 +1,13 @@
+
+
+services:
+  pr_backend:
+    build: .
+    ports:
+      - "5713:5713"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file: .env  # 👈 加這行：自動讀取 .env 檔案
+    environment:
+      - NODE_ENV=development
