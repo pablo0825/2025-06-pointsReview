@@ -153,7 +153,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // 處理未捕捉的 rejection（非同步錯誤）
-process.on("unhandledRejection", (reason: any, promise) => {
+process.on("unhandledRejection", (reason: any) => {
   console.error("未捕捉的 Rejection：", reason);
 
   // process.exit(1);
