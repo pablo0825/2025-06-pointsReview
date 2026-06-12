@@ -1,3 +1,4 @@
+// user.models.ts
 import mongoose, { Schema, Query } from "mongoose";
 import { IUser } from "../types/user.type";
 

@@ -15,8 +15,6 @@ import { Types } from "mongoose";
 import { UserDB } from "../models/user.models";
 import crypto from "crypto";
 import { PointsTableDB } from "../models/pointsTable.models";
-import { number } from "zod";
-import { use } from "react";
 import { PointsTaskDB } from "../models/pointsTask.models";
 
 // 查詢所有表單
