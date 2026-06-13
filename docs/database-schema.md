@@ -12,7 +12,7 @@
 - [x] 四種點數規則資料表
 - [ ] `application_attachments`
 - [ ] `application_review_actions`
-- [ ] `application_versions`
+- [x] `application_versions`
 - [ ] `advisor_signatures`
 - [ ] `student_point_change_requests`
 - [ ] `student_point_transactions`
@@ -239,6 +239,37 @@ ON point_applications (advisor_id, status);
 ```
 
 `point_applications_edit_token_hash_unique` 同時用於加速補件連結驗證查詢，並保證一個 Token 只能對應一個申請。`idx_point_applications_status_submitted_at` 與 `idx_point_applications_advisor_status` 對應承辦人待審列表與指導老師待簽核列表的常用查詢。
+
+## `application_versions`
+
+```sql
+CREATE TABLE application_versions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  version_number SMALLINT NOT NULL,
+  application_snapshot JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_versions_version_number_check
+    CHECK (version_number >= 1),
+
+  CONSTRAINT application_versions_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT application_versions_application_version_unique
+    UNIQUE (application_id, version_number)
+);
+```
+
+欄位與資料規則：
+
+- `application_versions` 為**不可變的歷史快照**。資料表沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- `application_snapshot` 的最小欄位集合與不包含的內容（審核結果、附件 metadata）請參考 [資料模型](data-model.md#申請版本-application_versions)。
+- `UNIQUE (application_id, version_number)` 保證同一筆申請不會出現重複版本編號。
+
+另外為支援 `point_applications.current_version_id` 複合外鍵，必須額外加入 `UNIQUE (id, application_id)` 約束；詳細 ALTER TABLE 寫法、循環外鍵與首次送件 Transaction 範例請參考下一節。
 
 ## 申請與版本的循環外鍵
 

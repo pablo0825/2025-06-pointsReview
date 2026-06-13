@@ -541,18 +541,45 @@ application_review_actions.action_type = reviewer_adjusted
 | --- | --- |
 | `id` | 主鍵 |
 | `application_id` | 關聯 `point_applications.id` |
-| `version_number` | 此版本編號 |
+| `version_number` | 此版本編號，使用 `SMALLINT`，必須大於或等於 `1` |
 | `application_snapshot` | 此版本送出時的完整申請資料，使用 PostgreSQL `JSONB` |
 | `created_at` | 此版本建立時間 |
 
-`application_snapshot` 是某個時間點的完整申請資料副本，預計包含：
+`application_versions` 屬於不可變的歷史紀錄，**沒有 `updated_at` 欄位，不掛 `set_updated_at()` Trigger**。版本一旦建立就不可修改或刪除。
 
-- 申請人姓名、Email 與電話。
-- 申請類型與該類型的專屬資料。
-- 指導老師資料。
-- 所有參與者的申請點數。
-- 申請總點數。
-- 附件資訊。
+`application_snapshot` 是某個時間點的完整申請資料副本，由 Service 在送件 Transaction 內寫入。**最小欄位集合**：
+
+```json
+{
+  "applicant": {
+    "name": "string",
+    "email": "string（已 normalize）",
+    "phone": "string"
+  },
+  "advisorId": 123,
+  "applicationType": "competition | certificate | project_participation | external_exhibition",
+  "typeDetails": {
+    // 對應類型專屬表的欄位快照
+  },
+  "participants": [
+    {
+      "classNumber": "string",
+      "studentNumber": "string",
+      "studentName": "string",
+      "requestedPoints": "number",
+      "isApplicant": "boolean"
+    }
+  ],
+  "requestedTotalPoints": "number"
+}
+```
+
+`application_snapshot` **不包含**：
+
+- 承辦人的審核結果（`approved_*` 欄位）：這些是審核之後的決定，不屬於送件當下，保存於目前資料表與 `application_review_actions`。
+- 附件 metadata：附件由 `application_attachments` 表負責，透過 `application_version_id` 對應版本，避免雙寫造成不一致。需要列出某版本的附件時以 SQL JOIN 取得。
+
+由於 `application_snapshot` 是凍結的歷史副本，未來如果資料模型欄位變動，舊版本快照**不需要 migration**；讀取舊版本時應容忍欄位缺失或結構差異，以快照當下的內容為準。
 
 正常資料表保存目前最新內容；`application_versions` 則保存每次送出時的歷史內容，避免補件修改後覆蓋舊版本。
 
