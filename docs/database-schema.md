@@ -9,7 +9,7 @@
 - [x] `point_applications`
 - [x] `application_participants`
 - [ ] 四種申請類型專屬資料表
-- [ ] 四種點數規則資料表
+- [x] 四種點數規則資料表
 - [ ] `application_attachments`
 - [ ] `application_review_actions`
 - [ ] `application_versions`
@@ -343,3 +343,188 @@ WHERE is_applicant = TRUE;
 1. 建立 `point_applications` 與循環外鍵的步驟完成後，才建立 `application_participants`。
 2. 建立 `one_applicant_per_application` Partial Unique Index。
 3. 為 `application_participants` 掛上 `set_updated_at()` Trigger。
+
+## 點數規則資料表
+
+四張規則表共用「半開區間 + Exclusion Constraint 防重疊」的版本管理模式，所有規則皆**不包含 `is_active` 欄位**，停用透過設定 `effective_to` 達成。規則表的業務語意與計算公式請參考 [點數系統](point-system.md)。
+
+建立規則表前必須啟用 `btree_gist` 擴充功能：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+```
+
+### `competition_point_rules`
+
+```sql
+CREATE TABLE competition_point_rules (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  competition_level VARCHAR(40) NOT NULL,
+  award VARCHAR(30) NOT NULL,
+  allocation_method VARCHAR(20) NOT NULL,
+  points NUMERIC(10, 2) NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT competition_point_rules_competition_level_check
+    CHECK (competition_level IN (
+      'international_integrated',
+      'international_non_integrated',
+      'national_integrated',
+      'national_non_integrated',
+      'other'
+    )),
+
+  CONSTRAINT competition_point_rules_award_check
+    CHECK (award IN (
+      'first_place',
+      'second_place',
+      'third_place',
+      'honorable_mention',
+      'other_award',
+      'finalist',
+      'participation'
+    )),
+
+  CONSTRAINT competition_point_rules_allocation_method_check
+    CHECK (allocation_method IN ('per_person', 'shared_total')),
+
+  CONSTRAINT competition_point_rules_points_check
+    CHECK (points >= 0),
+
+  CONSTRAINT competition_point_rules_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from)
+);
+
+ALTER TABLE competition_point_rules
+ADD CONSTRAINT competition_point_rules_no_overlap
+EXCLUDE USING gist (
+  competition_level WITH =,
+  award WITH =,
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+```
+
+### `project_point_rules`
+
+```sql
+CREATE TABLE project_point_rules (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  salary_unit BIGINT NOT NULL,
+  points_per_unit NUMERIC(10, 2) NOT NULL,
+  rounding_method VARCHAR(20) NOT NULL,
+  maximum_points NUMERIC(10, 2),
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT project_point_rules_salary_unit_check
+    CHECK (salary_unit > 0),
+
+  CONSTRAINT project_point_rules_points_per_unit_check
+    CHECK (points_per_unit > 0),
+
+  CONSTRAINT project_point_rules_rounding_method_check
+    CHECK (rounding_method IN ('floor')),
+
+  CONSTRAINT project_point_rules_maximum_points_check
+    CHECK (maximum_points IS NULL OR maximum_points >= 0),
+
+  CONSTRAINT project_point_rules_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from)
+);
+
+ALTER TABLE project_point_rules
+ADD CONSTRAINT project_point_rules_no_overlap
+EXCLUDE USING gist (
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+```
+
+`rounding_method` 目前 CHECK 只允許 `'floor'`，但保留欄位以便未來擴充其他取整策略（例如 `'round'`、`'ceiling'`）。新增允許值時只需 `ALTER TABLE` 修改 CHECK。
+
+### `certificate_point_rules`
+
+```sql
+CREATE TABLE certificate_point_rules (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  points_per_certificate NUMERIC(10, 2) NOT NULL,
+  maximum_points_per_student NUMERIC(10, 2) NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT certificate_point_rules_points_per_certificate_check
+    CHECK (points_per_certificate > 0),
+
+  CONSTRAINT certificate_point_rules_maximum_points_per_student_check
+    CHECK (maximum_points_per_student > 0),
+
+  CONSTRAINT certificate_point_rules_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from)
+);
+
+ALTER TABLE certificate_point_rules
+ADD CONSTRAINT certificate_point_rules_no_overlap
+EXCLUDE USING gist (
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+```
+
+未強制 `maximum_points_per_student >= points_per_certificate` 的跨欄位 CHECK，保留學校未來調整證照類點數政策（包含完全取消）的彈性。
+
+### `exhibition_point_rules`
+
+```sql
+CREATE TABLE exhibition_point_rules (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  exhibition_type VARCHAR(40) NOT NULL,
+  minimum_points_per_person NUMERIC(10, 2) NOT NULL,
+  maximum_points_per_person NUMERIC(10, 2) NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT exhibition_point_rules_exhibition_type_check
+    CHECK (exhibition_type IN (
+      'creative_work',
+      'graduation_project_exhibition'
+    )),
+
+  CONSTRAINT exhibition_point_rules_minimum_points_check
+    CHECK (minimum_points_per_person >= 0),
+
+  CONSTRAINT exhibition_point_rules_maximum_points_check
+    CHECK (maximum_points_per_person >= minimum_points_per_person),
+
+  CONSTRAINT exhibition_point_rules_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from)
+);
+
+ALTER TABLE exhibition_point_rules
+ADD CONSTRAINT exhibition_point_rules_no_overlap
+EXCLUDE USING gist (
+  exhibition_type WITH =,
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+```
+
+### 共用設計說明
+
+- 四張表都使用 `[effective_from, effective_to)` 半開區間；`effective_to` 為 `NULL` 代表無限期有效。
+- Exclusion Constraint 同時提供查詢索引，因此查詢「申請日期適用的規則」不需另外建立 index。
+- 四張表皆必須掛上共用 `set_updated_at()` Trigger。
+- 已被申請使用的規則不可修改、不可刪除；停用透過 `UPDATE ... SET effective_to = ?`。
+- 規則切換（設舊規則 `effective_to` + 建立新規則）必須在同一 Transaction 中完成，否則 Exclusion Constraint 會拒絕重疊寫入。
+
+建立順序：
+
+1. 啟用 `btree_gist` 擴充功能。
+2. 建立四張規則資料表（含內嵌 CHECK）。
+3. 為每張表建立 Exclusion Constraint。
+4. 為四張規則表各自掛上 `set_updated_at()` Trigger。

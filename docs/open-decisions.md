@@ -143,7 +143,7 @@ audit_logs
 
 仍需討論：
 
-- 除 `users`、`advisors`、`point_applications` 與 `application_participants` 外，其餘資料表套用共用型別規範後，各欄位的最終型別與 `NULL` 限制。
+- 除 `users`、`advisors`、`point_applications`、`application_participants` 與四張點數規則資料表外，其餘資料表套用共用型別規範後，各欄位的最終型別與 `NULL` 限制。
 
 ### 6. Migration 與初始資料 Seed
 

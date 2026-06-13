@@ -15,7 +15,6 @@
 | `points` | 每人固定點數或團隊可分配總點數 |
 | `effective_from` | 規則生效日期 |
 | `effective_to` | 規則失效日期，可為 `NULL` |
-| `is_active` | 規則是否啟用 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
@@ -82,11 +81,10 @@
 | `id` | 主鍵 |
 | `salary_unit` | 每個換算單位的薪資金額，目前為 `1000` |
 | `points_per_unit` | 每個薪資單位可換得的點數，目前為 `0.5` |
-| `rounding_method` | 不足一個薪資單位時的處理方式，目前為 `floor` |
+| `rounding_method` | 不足一個薪資單位時的處理方式，目前 CHECK 只允許 `floor`；保留欄位以便未來擴充其他取整策略 |
 | `maximum_points` | 點數上限，目前無上限，因此為 `NULL` |
 | `effective_from` | 規則生效日期 |
 | `effective_to` | 規則失效日期，可為 `NULL` |
-| `is_active` | 規則是否啟用 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
@@ -128,7 +126,6 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 | `maximum_points_per_student` | 每位學生證照類累積點數上限，目前為 `4` |
 | `effective_from` | 規則生效日期 |
 | `effective_to` | 規則失效日期，可為 `NULL` |
-| `is_active` | 規則是否啟用 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
@@ -155,7 +152,6 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 | `maximum_points_per_person` | 每位參與者最高可申請點數 |
 | `effective_from` | 規則生效日期 |
 | `effective_to` | 規則失效日期，可為 `NULL` |
-| `is_active` | 規則是否啟用 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
@@ -182,6 +178,8 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 - `project_point_rules`
 - `certificate_point_rules`
 - `exhibition_point_rules`
+
+四張規則表皆**不包含 `is_active` 欄位**。規則的生命週期完全由 `effective_from` 與 `effective_to` 控制，避免出現 `is_active = TRUE` 但 `effective_to` 已過期之類的語意衝突。需要立即停用某條規則時，將其 `effective_to` 更新為今日日期即可（在同一 Transaction 中視需要建立新規則）。
 
 規則適用日期以 `point_applications.submitted_at` 首次送件時間為準，不使用活動日期、補件日期或核准日期。
 
