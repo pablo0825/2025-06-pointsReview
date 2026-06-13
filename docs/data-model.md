@@ -674,3 +674,247 @@ signatures/applications/100/version-2/550e8400.png
 ```
 
 後端會根據 Storage Key 從私有本機目錄、S3、MinIO 或其他物件儲存空間取得簽名檔案。
+
+## 競賽點數規則 `competition_point_rules`
+
+保存競賽等級與獎項對應的點數規則。實際點數對應表、計算驗證流程與管理員操作請參考 [點數系統 - 競賽點數規則](point-system.md#競賽點數規則-competition_point_rules)。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `competition_level` | 競賽等級 |
+| `award` | 獎項 |
+| `allocation_method` | 點數分配方式 |
+| `points` | 每人固定點數或團隊可分配總點數，必須大於或等於 `0` |
+| `effective_from` | 規則生效日期 |
+| `effective_to` | 規則失效日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+`competition_level` 允許值（CHECK 限制）：
+
+- `international_integrated`
+- `international_non_integrated`
+- `national_integrated`
+- `national_non_integrated`
+- `other`
+
+`award` 允許值（CHECK 限制）：
+
+- `first_place`
+- `second_place`
+- `third_place`
+- `honorable_mention`
+- `other_award`
+- `finalist`
+- `participation`
+
+`allocation_method` 允許值（CHECK 限制）：`per_person`、`shared_total`。
+
+資料規則：
+
+- 規則生命週期完全由 `effective_from` 與 `effective_to` 控制；**無 `is_active` 欄位**。
+- 採半開區間 `[effective_from, effective_to)`，詳見 [點數規則版本管理共用政策](point-system.md#點數規則版本管理共用政策)。
+- 同一 `(competition_level, award)` 組合在重疊日期內不可存在多筆有效規則，由 `btree_gist` Exclusion Constraint 保證。
+- 已被申請使用的規則不可修改或刪除。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
+## 參與計畫點數規則 `project_point_rules`
+
+保存參與計畫薪資換算點數的規則與歷史版本。計算公式與管理員操作流程請參考 [點數系統 - 參與計畫點數規則](point-system.md#參與計畫點數規則-project_point_rules)。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `salary_unit` | 每個換算單位的薪資金額（新台幣元，`BIGINT`），必須大於 `0` |
+| `points_per_unit` | 每個薪資單位可換得的點數，必須大於 `0` |
+| `rounding_method` | 不足一個薪資單位時的處理方式；CHECK 目前只允許 `floor`，保留欄位以便未來擴充 |
+| `maximum_points` | 點數上限，`NULL` 代表無上限；非 `NULL` 時必須大於或等於 `0` |
+| `effective_from` | 規則生效日期 |
+| `effective_to` | 規則失效日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+資料規則：
+
+- 整張表共用同一種規則（不細分子類別），同一時間最多只有一條有效規則。
+- 重疊期間由 daterange Exclusion Constraint 防止。
+- 已被申請使用的規則不可修改或刪除。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
+## 證照點數規則 `certificate_point_rules`
+
+保存證照點數及每位學生證照類累積上限的規則與歷史版本。核准驗證流程請參考 [點數系統 - 證照點數規則](point-system.md#證照點數規則-certificate_point_rules)。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `points_per_certificate` | 每張證照可取得的點數，必須大於 `0` |
+| `maximum_points_per_student` | 每位學生證照類累積點數上限，必須大於 `0` |
+| `effective_from` | 規則生效日期 |
+| `effective_to` | 規則失效日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+資料規則：
+
+- 整張表共用同一種規則，同一時間最多只有一條有效規則。
+- 不強制 `maximum_points_per_student >= points_per_certificate` 跨欄位 CHECK，保留學校未來調整點數政策的彈性。
+- 重疊期間由 daterange Exclusion Constraint 防止。
+- 已被申請使用的規則不可修改或刪除。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
+## 校外展覽點數規則 `exhibition_point_rules`
+
+保存不同展覽類型可申請的每人點數範圍與歷史版本。實際點數範圍與管理員操作請參考 [點數系統 - 校外展覽點數規則](point-system.md#校外展覽點數規則-exhibition_point_rules)。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `exhibition_type` | 展覽類型 |
+| `minimum_points_per_person` | 每位參與者最低可申請點數，必須大於或等於 `0` |
+| `maximum_points_per_person` | 每位參與者最高可申請點數，必須大於或等於 `minimum_points_per_person` |
+| `effective_from` | 規則生效日期 |
+| `effective_to` | 規則失效日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+`exhibition_type` 允許值（CHECK 限制）：
+
+- `creative_work`
+- `graduation_project_exhibition`
+
+資料規則：
+
+- 同一 `exhibition_type` 在重疊日期內不可存在多筆有效規則，由 `btree_gist` Exclusion Constraint 保證。
+- 允許 `minimum = maximum`（固定點數）。
+- 已被申請使用的規則不可修改或刪除。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
+## 學生點數流水帳 `student_point_transactions`
+
+保存申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。點數查詢方式、核准前後調整流程、累積上限驗證請參考 [點數系統 - 學生點數流水帳](point-system.md#學生點數流水帳-student_point_transactions)。
+
+系統不建立學生主資料庫，因此使用 `student_number` 識別學生；姓名與班級僅保存建立異動時的資料快照。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `student_number` | 學號，作為學生點數查詢識別值 |
+| `student_name_snapshot` | 異動建立當下的學生姓名 |
+| `class_name_snapshot` | 異動建立當下的班級 |
+| `application_id` | 點數來源申請，關聯 `point_applications.id` |
+| `participant_id` | 點數來源參與者，關聯 `application_participants.id` |
+| `point_category` | 點數類別 |
+| `points` | 本次異動值，可為正、負或 `0`（不建立非負 CHECK） |
+| `transaction_type` | 異動類型 |
+| `related_transaction_id` | 核准後更正時，關聯被調整的原始紀錄，可為 `NULL` |
+| `reason` | 核准後更正原因；`award` 為 `NULL` |
+| `created_by_user_id` | 建立此異動的使用者，關聯 `users.id` |
+| `created_at` | 建立時間 |
+
+`point_category` 允許值（CHECK 限制，對應申請類型）：
+
+- `competition`
+- `certificate`
+- `project_participation`
+- `external_exhibition`
+
+`transaction_type` 允許值（CHECK 限制）：
+
+| 值 | 說明 |
+| --- | --- |
+| `award` | 申請核准時建立的點數 |
+| `adjustment` | 核准後新增的正數或負數更正 |
+| `reversal` | 完整沖銷某筆原始點數 |
+
+跨表完整性：
+
+- 複合外鍵 `(participant_id, application_id) → application_participants (id, application_id)` 確保流水帳的參與者確實屬於同一筆申請。此 FK 重用 `application_participants.UNIQUE (id, application_id)`。
+- `related_transaction_id` 為自我參照外鍵，僅在 `adjustment` 與 `reversal` 時非 `NULL`，指向被調整的原始 `award` 紀錄。
+
+資料規則：
+
+- `transaction_type` 與 `related_transaction_id`、`reason` 的配對由資料庫多態 `CHECK` 強制：`award` 時兩者必須為 `NULL`；`adjustment`／`reversal` 時兩者必須非 `NULL`。
+- 同一筆參與者只能產生一筆原始 `award`，由 partial unique index `one_award_per_participant` 保證。
+- `point_category` 必須對應該申請的 `application_type`，由 Service 在 Transaction 內驗證。
+- `adjustment` 與 `reversal` 的 `created_by_user_id` 必須為管理員身分，由 Service 驗證（資料庫不加跨表 CHECK）。
+- 流水帳為**不可變稽核紀錄**，沒有 `updated_at`，不掛 Trigger；不可實體刪除，由 application 層保證沒有對應的 DELETE／UPDATE endpoint。
+
+## 學生點數異動申請 `student_point_change_requests`
+
+保存承辦人針對核准後點數提出的異動或沖銷申請。承辦人只能提出申請，不能直接修改學生點數流水帳；管理員核准後，系統才建立實際的點數異動紀錄。操作流程、權限邊界與業務驗證請參考 [點數系統 - 學生點數異動申請](point-system.md#學生點數異動申請-student_point_change_requests)。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `public_id` | 對外點數異動申請識別值，使用 UUID，必須唯一 |
+| `target_transaction_id` | 目標點數流水帳，關聯 `student_point_transactions.id` |
+| `requested_by_user_id` | 提出申請的承辦人，關聯 `users.id` |
+| `reviewed_by_user_id` | 審核申請的管理員，關聯 `users.id`，審核前為 `NULL` |
+| `change_type` | 異動類型 |
+| `requested_points` | 希望新增至流水帳的異動點數，不可為 `0` |
+| `reason` | 承辦人提出異動的原因，必填 |
+| `status` | 異動申請狀態 |
+| `reviewed_reason` | 管理員核准或拒絕的說明，可為 `NULL` |
+| `reviewed_at` | 管理員完成審核的時間，可為 `NULL` |
+| `created_transaction_id` | 核准後建立的點數流水帳，關聯 `student_point_transactions.id`，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+`change_type` 允許值（CHECK 限制）：
+
+| 值 | 說明 |
+| --- | --- |
+| `adjustment` | 增加或減少部分核准後點數 |
+| `reversal` | 完整取消原始核准點數 |
+
+`status` 允許值（CHECK 限制）：
+
+| 值 | 說明 |
+| --- | --- |
+| `pending` | 等待管理員審核 |
+| `approved` | 管理員已核准並建立點數異動 |
+| `rejected` | 管理員已拒絕 |
+
+資料規則：
+
+- `requested_points` 不可為 `0`，由資料庫 `CHECK` 保證。
+- `status` 與 `reviewed_*` 欄位、`created_transaction_id` 的配對由多態 `CHECK` 強制：
+  - `pending`：四個欄位皆為 `NULL`。
+  - `approved`：`reviewed_by_user_id`、`reviewed_at`、`created_transaction_id` 非 `NULL`，`reviewed_reason` 可選。
+  - `rejected`：`reviewed_by_user_id`、`reviewed_at`、`reviewed_reason` 非 `NULL`，`created_transaction_id` 為 `NULL`。
+- 同一筆原始點數不可存在多筆 `pending` 異動申請，由 partial unique index `one_pending_change_per_transaction` 保證。
+- 一筆 `student_point_transactions` 紀錄最多只能由一筆 change_request 建立，由 `created_transaction_id` 的 partial unique index 保證。
+- 核准或拒絕後不可修改紀錄內容。
+- `requested_by_user_id` 應為承辦人、`reviewed_by_user_id` 應為管理員，由 Service 依 `users.role` 驗證；資料庫層不加跨表 CHECK。
+- 本表不保存 `ip_address` 與 `user_agent`；詳細稽核依賴規劃中的 `audit_logs` 表（見 [待決策項目](open-decisions.md#4-通用系統稽核紀錄)）。
+- 必須掛上共用 `set_updated_at()` Trigger（`status` 從 `pending` 變更時會 UPDATE）。
+
+`adjustment` 與 `reversal` 的數值上限（如異動後不得 < 0、reversal 必須等於原始相反數）由 Service 驗證，詳見 [點數系統 - 學生點數異動申請](point-system.md#學生點數異動申請-student_point_change_requests)。
+
+## 公開學生點數總表 `student_points_summary`
+
+`student_points_summary` 是 PostgreSQL **View**，不是實體資料表。提供學生在不登入的情況下查詢自己或其他學生目前的各類累積點數與總點數，第一版即時從 `student_point_transactions` 計算。查詢功能、排序、分頁與遮罩規則請參考 [點數系統 - 公開學生點數總表](point-system.md#公開學生點數總表-student_points_summary)。
+
+View 結構（欄位）：
+
+| 欄位 | 說明 |
+| --- | --- |
+| `student_number` | 完整學號，僅供後端查詢及產生遮罩資料 |
+| `student_name` | 最新姓名快照（取最後一次點數異動寫入的值） |
+| `class_name` | 最新班級快照 |
+| `competition_points` | 競賽類累積點數 |
+| `project_participation_points` | 參與計畫類累積點數 |
+| `certificate_points` | 證照類累積點數 |
+| `external_exhibition_points` | 校外展覽類累積點數 |
+| `total_points` | 所有類別累積總點數 |
+| `updated_at` | 最後一筆點數異動建立時間（資料新鮮度顯示） |
+
+設計說明：
+
+- 用 `DISTINCT ON (student_number) ORDER BY created_at DESC` 取最新姓名／班級快照，避免 `MAX(name)` 取字串最大值的錯誤。
+- 各類別點數用 `SUM(points) FILTER (WHERE point_category = ...)` + `COALESCE(..., 0)` 處理無紀錄。
+- View 回傳完整 `student_number` 與 `student_name`；**公開 API 必須在回傳前遮罩**。
+- 完整可執行 SQL 請參考 [資料庫 Schema](database-schema.md#student_points_summary-view)。
+- 若日後資料量增加導致即時計算成本過高，可改為 Materialized View 並排程 `REFRESH MATERIALIZED VIEW`。

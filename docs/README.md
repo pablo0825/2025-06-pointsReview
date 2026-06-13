@@ -7,10 +7,10 @@
 ## 文件索引
 
 - [產品流程](product-workflows.md)：申請、簽核、補件、審核、逾期與點數異動流程。
-- [資料模型](data-model.md)：ER 圖、核心業務資料表、欄位用途與關聯。
+- [資料模型](data-model.md)：ER 圖、所有資料表與 View 的欄位定義、允許值、Constraint 與關聯。
 - [Schema 設計規範](schema-conventions.md)：PostgreSQL 共用型別、外鍵、驗證、Constraint 與 Index 規範。
 - [資料庫 Schema](database-schema.md)：已確認的完整 `CREATE TABLE`、Trigger、Index 與其他可轉換為 Migration 的 SQL。
-- [點數系統](point-system.md)：點數規則、計算、版本、流水帳、異動與公開點數總表。
+- [點數系統](point-system.md)：點數規則的業務語意、實際點數對應表、計算公式、版本管理政策、流水帳查詢方式與公開遮罩規則。
 - [帳號與權限](authorization.md)：帳號生命週期、角色、權限代碼與權限矩陣。
 - [基礎設施](infrastructure.md)：已確認的技術責任邊界與後續基礎設施設計方向。
 - [待決策項目](open-decisions.md)：尚未完成正式設計的問題與建議討論順序。
