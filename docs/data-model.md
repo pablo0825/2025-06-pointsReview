@@ -237,6 +237,16 @@ ADD CONSTRAINT application_participants_application_student_unique
 UNIQUE (application_id, student_number);
 ```
 
+額外建立 `UNIQUE (id, application_id)`，供 `student_point_transactions` 的複合外鍵使用，保證流水帳的 `participant_id` 與 `application_id` 屬於同一筆申請：
+
+```sql
+ALTER TABLE application_participants
+ADD CONSTRAINT application_participants_id_application_unique
+UNIQUE (id, application_id);
+```
+
+此 UNIQUE 在語意上是冗餘的（`id` 為 PK 已自然唯一），但 PostgreSQL 需要顯式 UNIQUE 才能作為複合外鍵的目標。
+
 ## 競賽申請資料 `competition_application_details`
 
 保存只有競賽點數申請才會使用的資料，與 `point_applications` 為一對一關係。

@@ -372,10 +372,12 @@ EXCLUDE USING gist (
 - 申請狀態更新為 `approved` 與建立所有學生點數異動，必須在同一個 PostgreSQL Transaction 中完成。
 - 核准前承辦人調整點數時，流水帳只寫入最終 `approved_points`，不需要額外建立差額紀錄。
 - 核准後若需要更正點數，不可修改或刪除原始流水帳；承辦人必須提出 `student_point_change_requests`，由管理員核准後新增一筆 `adjustment` 或 `reversal`。
-- 核准後更正時，`related_transaction_id` 與 `reason` 必填。
-- `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員。
-- 建議建立 `student_number` 索引，提升學生點數查詢效率。
-- 同一筆申請參與者只能產生一筆原始 `award` 紀錄，建議建立 partial unique index。
+- `transaction_type` 與 `related_transaction_id`、`reason` 配對由資料庫 `CHECK` 強制：`award` 時兩者必須 `NULL`，`adjustment`／`reversal` 時兩者必須非 `NULL`。
+- `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員，由 Service 在 Transaction 內驗證。
+- `point_category` 必須對應該申請的 `application_type`，由 Service 在建立流水帳時保證。
+- 使用複合外鍵 `FOREIGN KEY (participant_id, application_id) REFERENCES application_participants (id, application_id)` 確保流水帳的參與者確實屬於同一筆申請，由資料庫保證一致性。
+- `student_point_transactions` 屬於不可變稽核紀錄，**沒有 `updated_at`，不掛 `set_updated_at()` Trigger**；不可修改、不可刪除既有紀錄，由 application 層保證沒有對應的 DELETE／UPDATE endpoint。
+- 同一筆申請參與者只能產生一筆原始 `award` 紀錄，由 partial unique index 保證。
 
 建議索引：
 

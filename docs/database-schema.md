@@ -15,7 +15,7 @@
 - [x] `application_versions`
 - [x] `advisor_signatures`
 - [ ] `student_point_change_requests`
-- [ ] `student_point_transactions`
+- [x] `student_point_transactions`
 - [ ] `student_points_summary` View
 
 ## 共用資料庫物件
@@ -348,7 +348,10 @@ CREATE TABLE application_participants (
     ON UPDATE RESTRICT,
 
   CONSTRAINT application_participants_application_student_unique
-    UNIQUE (application_id, student_number)
+    UNIQUE (application_id, student_number),
+
+  CONSTRAINT application_participants_id_application_unique
+    UNIQUE (id, application_id)
 );
 ```
 
@@ -358,6 +361,7 @@ CREATE TABLE application_participants (
 - 申請人姓名（`is_applicant = TRUE` 的 `student_name`）與 `point_applications.applicant_name` 的一致性、參與者點數加總與申請總點數的一致性，皆由 Service 在 Transaction 內驗證，資料庫層不建立跨表 `CHECK` 或 Trigger。
 - 補件採就地 `UPDATE`／`DELETE`／`INSERT`，歷史依賴 `application_versions.application_snapshot`。
 - `application_participants` 必須掛上共用 `set_updated_at()` Trigger。
+- `UNIQUE (id, application_id)` 給 `student_point_transactions` 的複合外鍵使用，確保流水帳的 `participant_id` 與 `application_id` 屬於同一筆申請；`id` 本身為 PK 自然唯一，加上此複合 UNIQUE 不影響原有業務語意。
 
 索引：
 
@@ -1048,3 +1052,110 @@ WHERE actor_user_id IS NOT NULL;
 1. 確認 `point_applications` 與 `users` 已建立。
 2. 建立 `application_review_actions`。
 3. 建立兩個索引。
+
+## `student_point_transactions`
+
+```sql
+CREATE TABLE student_point_transactions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  student_number VARCHAR(50) NOT NULL,
+  student_name_snapshot VARCHAR(100) NOT NULL,
+  class_name_snapshot VARCHAR(100) NOT NULL,
+  application_id BIGINT NOT NULL,
+  participant_id BIGINT NOT NULL,
+  point_category VARCHAR(30) NOT NULL,
+  points NUMERIC(10, 2) NOT NULL,
+  transaction_type VARCHAR(20) NOT NULL,
+  related_transaction_id BIGINT,
+  reason TEXT,
+  created_by_user_id BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT student_point_transactions_point_category_check
+    CHECK (point_category IN (
+      'competition',
+      'certificate',
+      'project_participation',
+      'external_exhibition'
+    )),
+
+  CONSTRAINT student_point_transactions_transaction_type_check
+    CHECK (transaction_type IN ('award', 'adjustment', 'reversal')),
+
+  CONSTRAINT student_point_transactions_related_pair_check
+    CHECK (
+      (transaction_type = 'award'
+        AND related_transaction_id IS NULL
+        AND reason IS NULL)
+      OR
+      (transaction_type IN ('adjustment', 'reversal')
+        AND related_transaction_id IS NOT NULL
+        AND reason IS NOT NULL)
+    ),
+
+  CONSTRAINT student_point_transactions_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_transactions_participant_application_fk
+    FOREIGN KEY (participant_id, application_id)
+    REFERENCES application_participants (id, application_id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_transactions_related_fk
+    FOREIGN KEY (related_transaction_id) REFERENCES student_point_transactions (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_transactions_created_by_user_fk
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `student_point_transactions` 為不可變稽核紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**；不可實體刪除，由 application 層保證沒有 DELETE／UPDATE endpoint。
+- `points` 允許正數、負數或 `0`，不建立非負數 `CHECK`，以支援 `adjustment` 與 `reversal`。
+- 複合外鍵 `(participant_id, application_id) → application_participants (id, application_id)` 確保流水帳的 participant 與 application 屬於同一筆申請；複用 `application_participants.UNIQUE (id, application_id)`。
+- `related_transaction_id` 為自我參照外鍵，僅在 `adjustment` 與 `reversal` 時非 `NULL`，指向被調整的原始 `award` 紀錄。
+- `point_category` 必須對應該申請的 `application_type`，由 Service 在 Transaction 內驗證。
+- `adjustment` 與 `reversal` 的 `created_by_user_id` 必須為管理員，由 Service 驗證。
+
+索引：
+
+```sql
+CREATE INDEX idx_student_point_transactions_student_number
+ON student_point_transactions (student_number);
+
+CREATE INDEX idx_student_point_transactions_student_category
+ON student_point_transactions (student_number, point_category);
+
+CREATE INDEX idx_student_point_transactions_application_id
+ON student_point_transactions (application_id);
+
+CREATE INDEX idx_student_point_transactions_related_transaction_id
+ON student_point_transactions (related_transaction_id)
+WHERE related_transaction_id IS NOT NULL;
+
+CREATE UNIQUE INDEX one_award_per_participant
+ON student_point_transactions (participant_id)
+WHERE transaction_type = 'award';
+```
+
+各索引用途：
+
+- `idx_student_point_transactions_student_number`：學生點數查詢與彙總。
+- `idx_student_point_transactions_student_category`：`student_points_summary` View 按類別加總時加速。
+- `idx_student_point_transactions_application_id`：列出某申請產生的所有點數紀錄。
+- `idx_student_point_transactions_related_transaction_id`：查某筆原始 `award` 後續被哪些 `adjustment`／`reversal` 調整過。
+- `one_award_per_participant`：保證每位參與者最多只能有一筆 `award` 紀錄。
+
+建立順序：
+
+1. 確認 `point_applications`、`application_participants`（含 `UNIQUE (id, application_id)`）與 `users` 已建立。
+2. 建立 `student_point_transactions`。
+3. 建立五個索引。
