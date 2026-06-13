@@ -185,27 +185,41 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
-| `application_id` | 關聯 `point_applications.id` |
+| `application_id` | 關聯 `point_applications.id`，搭配 `student_number` 必須唯一 |
 | `class_name` | 班級 |
-| `student_number` | 學號 |
+| `student_number` | 學號，同一申請內不可重複 |
 | `student_name` | 姓名 |
-| `requested_points` | 申請人為此參與者填寫的申請點數 |
-| `approved_points` | 承辦人核准的最終點數，審核前為 `NULL`，允許為 `0` |
-| `is_applicant` | 是否為本次申請人 |
+| `requested_points` | 申請人為此參與者填寫的申請點數，必須大於 `0` |
+| `approved_points` | 承辦人核准的最終點數，審核前為 `NULL`，核准時必須大於或等於 `0`（允許為 `0`） |
+| `is_applicant` | 是否為本次申請人，預設為 `false` |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
-資料規則：
+`application_id`、`class_name`、`student_number`、`student_name`、`requested_points` 與 `is_applicant` 皆為 `NOT NULL`；`approved_points` 在核准前為 `NULL`。
 
-- 每筆申請至少需要一位參與者。
-- 每筆申請必須剛好有一位 `is_applicant = true` 的參與者。
-- `is_applicant = true` 的 `student_name` 必須與 `point_applications.applicant_name` 一致。
-- 同一筆申請內不能出現重複學號。
-- `requested_points` 必須大於零。
-- `approved_points` 審核前為 `NULL`，核准時必須大於或等於 `0`。
+跨資料表加總一致性規則：
+
 - 所有參與者的 `requested_points` 加總，必須等於 `point_applications.requested_total_points`。
 - 所有參與者的 `approved_points` 加總，必須等於 `point_applications.approved_total_points`。
-- 核准完成後，`approved_points` 不可再修改。
+- 上述加總一致性無法以 `CHECK` 表達，必須由 Service 在同一個 PostgreSQL Transaction 中驗證並寫入。
+
+申請人身分規則：
+
+- 每筆申請至少需要一位參與者，且必須剛好有一位 `is_applicant = TRUE` 的參與者。
+- `is_applicant = TRUE` 的 `student_name` 必須與 `point_applications.applicant_name` 一致，由 Service 在 Transaction 內驗證，資料庫層不建立跨表 Trigger。
+- 使用 partial unique index 限制每筆申請最多只能有一位申請人；至少需要一位申請人的條件由 Service 與 Zod 驗證保證。
+
+補件版本處理：
+
+- 補件時申請人可能修改參與者名單、學號或點數分配。
+- `application_participants` 採就地 `UPDATE`／`DELETE`／`INSERT`，只反映目前最新版本的參與者。
+- 完整歷史依賴 `application_versions.application_snapshot` 保留每次送件時的快照，`application_participants` 表本身不維護版本歷史。
+- 補件操作會更新資料列，因此 `updated_at` 必須掛上共用 `set_updated_at()` Trigger。
+- `student_point_transactions.participant_id` 永遠指向目前版本的參與者列；只有核准後才會建立點數異動，補件中途的參與者列不會產生點數紀錄。
+
+核准後規則：
+
+- 核准完成後，`approved_points` 不可再修改；後續更正必須走 `student_point_change_requests` 流程。
 
 建議使用 partial unique index，限制每筆申請只能有一位申請人：
 
@@ -213,6 +227,14 @@ WHERE is_director = TRUE AND is_active = TRUE;
 CREATE UNIQUE INDEX one_applicant_per_application
 ON application_participants (application_id)
 WHERE is_applicant = TRUE;
+```
+
+同時建立同一申請內學號的唯一限制：
+
+```sql
+ALTER TABLE application_participants
+ADD CONSTRAINT application_participants_application_student_unique
+UNIQUE (application_id, student_number);
 ```
 
 ## 競賽申請資料 `competition_application_details`

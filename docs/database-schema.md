@@ -7,7 +7,7 @@
 - [x] `users`
 - [x] `advisors`
 - [x] `point_applications`
-- [ ] `application_participants`
+- [x] `application_participants`
 - [ ] 四種申請類型專屬資料表
 - [ ] 四種點數規則資料表
 - [ ] `application_attachments`
@@ -289,3 +289,57 @@ Migration 建立順序：
 2. 建立 `application_versions` 及其指向 `point_applications.id` 的外鍵。
 3. 建立 `UNIQUE (id, application_id)`。
 4. 最後使用 `ALTER TABLE point_applications` 建立 `current_version_id` 複合外鍵。
+
+## `application_participants`
+
+```sql
+CREATE TABLE application_participants (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  class_name VARCHAR(100) NOT NULL,
+  student_number VARCHAR(50) NOT NULL,
+  student_name VARCHAR(100) NOT NULL,
+  requested_points NUMERIC(10, 2) NOT NULL,
+  approved_points NUMERIC(10, 2),
+  is_applicant BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_participants_requested_points_check
+    CHECK (requested_points > 0),
+
+  CONSTRAINT application_participants_approved_points_check
+    CHECK (approved_points IS NULL OR approved_points >= 0),
+
+  CONSTRAINT application_participants_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT application_participants_application_student_unique
+    UNIQUE (application_id, student_number)
+);
+```
+
+欄位與資料規則：
+
+- `requested_points` 必須大於 `0`；`approved_points` 在核准前為 `NULL`，核准時允許為 `0`。
+- 申請人姓名（`is_applicant = TRUE` 的 `student_name`）與 `point_applications.applicant_name` 的一致性、參與者點數加總與申請總點數的一致性，皆由 Service 在 Transaction 內驗證，資料庫層不建立跨表 `CHECK` 或 Trigger。
+- 補件採就地 `UPDATE`／`DELETE`／`INSERT`，歷史依賴 `application_versions.application_snapshot`。
+- `application_participants` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX one_applicant_per_application
+ON application_participants (application_id)
+WHERE is_applicant = TRUE;
+```
+
+`UNIQUE (application_id, student_number)` 同時可作為以 `application_id` 為前綴的查詢索引使用，例如「列出某筆申請的所有參與者」。`one_applicant_per_application` Partial Unique Index 保證每筆申請最多只能有一位 `is_applicant = TRUE` 的參與者；「至少存在一位申請人」的條件由 Zod 與 Service 驗證保證。
+
+建立順序：
+
+1. 建立 `point_applications` 與循環外鍵的步驟完成後，才建立 `application_participants`。
+2. 建立 `one_applicant_per_application` Partial Unique Index。
+3. 為 `application_participants` 掛上 `set_updated_at()` Trigger。
