@@ -13,7 +13,7 @@
 - [ ] `application_attachments`
 - [ ] `application_review_actions`
 - [x] `application_versions`
-- [ ] `advisor_signatures`
+- [x] `advisor_signatures`
 - [ ] `student_point_change_requests`
 - [ ] `student_point_transactions`
 - [ ] `student_points_summary` View
@@ -815,3 +815,60 @@ CREATE TABLE external_exhibition_details (
 1. 確認 `point_applications`、`application_participants` 與四張規則表已建立。
 2. 依任意順序建立四張類型專屬資料表（彼此不互相依賴）。
 3. 為每張表掛上 `set_updated_at()` Trigger。
+
+## `advisor_signatures`
+
+```sql
+CREATE TABLE advisor_signatures (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_version_id BIGINT NOT NULL,
+  advisor_user_id BIGINT NOT NULL,
+  signature_storage_key TEXT NOT NULL,
+  signed_at TIMESTAMPTZ NOT NULL,
+  invalidated_at TIMESTAMPTZ,
+  invalidated_reason TEXT,
+  ip_address INET NOT NULL,
+  user_agent TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT advisor_signatures_invalidation_pair_check
+    CHECK (
+      (invalidated_at IS NULL AND invalidated_reason IS NULL)
+      OR
+      (invalidated_at IS NOT NULL AND invalidated_reason IS NOT NULL)
+    ),
+
+  CONSTRAINT advisor_signatures_application_version_fk
+    FOREIGN KEY (application_version_id) REFERENCES application_versions (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT advisor_signatures_advisor_user_fk
+    FOREIGN KEY (advisor_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- 沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- 簽名失效採 UPDATE 既有紀錄（`invalidated_at` 與 `invalidated_reason` 同時寫入），不 INSERT 失效紀錄。
+- `advisor_user_id` 對應 `users.id`；該帳號必須是該申請的指導老師（透過 `advisors.user_id` 與 `point_applications.advisor_id` 對應），由 Service 在 Transaction 內驗證。
+- `invalidated_reason` 為自由文字，目前僅有「補件提交導致失效」一種情境，未來如需區分多種原因可改為列舉欄位。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX one_valid_signature_per_version
+ON advisor_signatures (application_version_id)
+WHERE invalidated_at IS NULL;
+```
+
+`one_valid_signature_per_version` Partial Unique Index 保證每個版本最多只能有一筆 `invalidated_at IS NULL` 的有效簽名。配合補件流程，舊版本簽名先 UPDATE `invalidated_at`，再 INSERT 新版本的簽名，不會觸發唯一性衝突。
+
+建立順序：
+
+1. 確認 `users` 與 `application_versions` 已建立。
+2. 建立 `advisor_signatures`。
+3. 建立 `one_valid_signature_per_version` Partial Unique Index。

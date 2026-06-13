@@ -611,26 +611,39 @@ application_review_actions.action_type = reviewer_adjusted
 | --- | --- |
 | `id` | 主鍵 |
 | `application_version_id` | 關聯 `application_versions.id` |
-| `advisor_user_id` | 簽名教師帳號，關聯 `users.id` |
-| `signature_storage_key` | 私有簽名檔案的儲存識別值 |
-| `signed_at` | 簽名時間 |
+| `advisor_user_id` | 簽名教師帳號，關聯 `users.id`（實際登入並完成簽名的人） |
+| `signature_storage_key` | 私有簽名檔案的儲存識別值，使用 `TEXT` |
+| `signed_at` | 簽名時間（業務語意欄位） |
 | `invalidated_at` | 簽名失效時間，可為 `NULL` |
-| `invalidated_reason` | 簽名失效原因，可為 `NULL` |
-| `ip_address` | 簽名操作來源 IP |
-| `user_agent` | 簽名操作的瀏覽器資訊 |
-| `created_at` | 建立時間 |
+| `invalidated_reason` | 簽名失效原因，可為 `NULL`，使用 `TEXT` 自由文字 |
+| `ip_address` | 簽名操作來源 IP，使用 `INET` |
+| `user_agent` | 簽名操作的瀏覽器資訊，使用 `TEXT` |
+| `created_at` | 建立時間（資料列建立時間，與 `signed_at` 同步寫入） |
+
+`advisor_signatures` 沒有 `updated_at` 欄位，**不掛 `set_updated_at()` Trigger**。簽名建立後，唯一可能的修改是「標記失效」，該操作已由 `invalidated_at` 紀錄，不需要額外 `updated_at`。
 
 資料規則：
 
 - 指導老師必須登入系統後才能簽名。
 - 指導老師收到通知連結後，登入成功應直接導向指定申請的簽核頁面。
-- 老師拒絕申請時不需要簽名，但必須填寫拒絕原因。
+- 老師拒絕申請時不需要簽名，但必須填寫拒絕原因。拒絕由 `application_review_actions.advisor_rejected` 紀錄，不寫入 `advisor_signatures`。
 - 老師同意申請時，必須確認申請內容並完成簽名。
-- 每次簽名建立新紀錄，不覆蓋舊簽名。
-- 申請人完成補件後，舊簽名標記失效，老師必須對新版本重新簽名。
+- 每次簽名建立新紀錄，新版本要簽名就 INSERT 一筆新的 `advisor_signatures`；新簽名不會覆蓋既有紀錄。
+- 申請人完成補件後，**舊簽名以 UPDATE 方式標記失效**：設定 `invalidated_at` 與 `invalidated_reason`，不會 INSERT 失效紀錄、也不會刪除原本的簽名。每個版本因此最多只有一筆 `advisor_signatures`。
 - `application_version_id` 用來證明老師簽名時實際同意的申請內容。
+- `advisor_user_id` 對應的 `users` 帳號必須是該申請的指導老師（透過 `advisors.user_id` ↔ `point_applications.advisor_id` 比對），由 Service 在 Transaction 內驗證。
+- `ip_address` 與 `user_agent` 必填（NOT NULL），作為稽核完整性的基礎。
+- `invalidated_at` 與 `invalidated_reason` 必須同時為 `NULL` 或同時非 `NULL`，由 `CHECK` 保證。
 - 簽名板固定輸出 PNG，後端必須驗證實際檔案格式，並使用 `.png` 儲存。
 - 簽名圖片屬於敏感資料，不應以公開靜態網址提供，必須透過權限驗證後存取。
+
+每個版本最多只能有一筆有效簽名，透過 partial unique index 限制：
+
+```sql
+CREATE UNIQUE INDEX one_valid_signature_per_version
+ON advisor_signatures (application_version_id)
+WHERE invalidated_at IS NULL;
+```
 
 `signature_storage_key` 不保存公開網址或作業系統絕對路徑。例如：
 
