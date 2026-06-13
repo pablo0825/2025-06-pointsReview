@@ -138,21 +138,27 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
-| `public_id` | 對外申請識別值，使用 UUID |
+| `public_id` | 對外申請識別值，使用 UUID，必須唯一 |
 | `application_type` | 申請類型 |
 | `status` | 目前申請狀態 |
 | `advisor_id` | 關聯 `advisors.id` |
 | `applicant_name` | 申請人姓名 |
-| `applicant_email` | 申請人通知 Email |
+| `applicant_email` | 申請人通知 Email，必須為正規化後（trim + lowercase）格式 |
 | `applicant_phone` | 申請人聯絡電話 |
-| `requested_total_points` | 所有參與者申請點數的加總 |
-| `approved_total_points` | 所有參與者核准點數的加總，審核前為 `NULL` |
-| `current_version_id` | 目前申請版本，關聯 `application_versions.id` |
+| `requested_total_points` | 所有參與者申請點數的加總，必須大於或等於 `0` |
+| `approved_total_points` | 所有參與者核准點數的加總，審核前為 `NULL`，核准後必須大於或等於 `0` |
+| `current_version_id` | 目前申請版本，關聯 `application_versions.id`；首次建立 Transaction 中暫時為 `NULL` |
 | `edit_token_hash` | 補件連結 Token 的雜湊值，可為 `NULL` |
 | `edit_token_expires_at` | 補件連結到期時間，可為 `NULL` |
 | `submitted_at` | 首次送件時間 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
+
+申請人三件套（`applicant_name`、`applicant_email`、`applicant_phone`）皆為 `NOT NULL`。申請建立等同於送件，沒有草稿階段，因此 `submitted_at` 在首次建立時等於 `created_at`，但保留獨立欄位以便清楚標示業務意涵，並作為點數規則版本查詢依據。
+
+`edit_token_hash` 與 `edit_token_expires_at` 必須同時為 `NULL` 或同時非 `NULL`，由 PostgreSQL `CHECK` constraint 保證。補件 Token 雜湊使用 `BYTEA`，與 `users` 的啟用與密碼重設 Token 相同處理方式，並建立非 `NULL` 值的 Partial Unique Index 防止 Token 撞號並加速查詢。
+
+`applicant_email` 在寫入前必須移除前後空白並轉為小寫，但**不建立唯一索引**，因為同一位申請人可以重複建立多筆申請。
 
 ### 申請類型
 

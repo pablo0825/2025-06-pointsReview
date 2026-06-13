@@ -6,7 +6,7 @@
 
 - [x] `users`
 - [x] `advisors`
-- [ ] `point_applications`
+- [x] `point_applications`
 - [ ] `application_participants`
 - [ ] 四種申請類型專屬資料表
 - [ ] 四種點數規則資料表
@@ -151,6 +151,94 @@ WHERE is_director = TRUE AND is_active = TRUE;
 2. 建立 `advisors` 資料表。
 3. 建立 `advisors_user_id_unique`、`advisors_employee_number_unique` 與 `one_active_director` 索引。
 4. 為 `advisors` 掛上 `set_updated_at()` Trigger。
+
+## `point_applications`
+
+```sql
+CREATE TABLE point_applications (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  public_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  application_type VARCHAR(30) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  advisor_id BIGINT NOT NULL,
+  applicant_name VARCHAR(100) NOT NULL,
+  applicant_email VARCHAR(320) NOT NULL,
+  applicant_phone VARCHAR(30) NOT NULL,
+  requested_total_points NUMERIC(10, 2) NOT NULL,
+  approved_total_points NUMERIC(10, 2),
+  current_version_id BIGINT,
+  edit_token_hash BYTEA,
+  edit_token_expires_at TIMESTAMPTZ,
+  submitted_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT point_applications_application_type_check
+    CHECK (application_type IN (
+      'competition',
+      'certificate',
+      'project_participation',
+      'external_exhibition'
+    )),
+
+  CONSTRAINT point_applications_status_check
+    CHECK (status IN (
+      'pending_advisor',
+      'under_review',
+      'needs_revision',
+      'approved',
+      'rejected'
+    )),
+
+  CONSTRAINT point_applications_requested_total_points_check
+    CHECK (requested_total_points >= 0),
+
+  CONSTRAINT point_applications_approved_total_points_check
+    CHECK (approved_total_points IS NULL OR approved_total_points >= 0),
+
+  CONSTRAINT point_applications_applicant_email_normalized_check
+    CHECK (applicant_email = LOWER(BTRIM(applicant_email))),
+
+  CONSTRAINT point_applications_edit_token_pair_check
+    CHECK (
+      (edit_token_hash IS NULL AND edit_token_expires_at IS NULL)
+      OR
+      (edit_token_hash IS NOT NULL AND edit_token_expires_at IS NOT NULL)
+    ),
+
+  CONSTRAINT point_applications_advisor_fk
+    FOREIGN KEY (advisor_id) REFERENCES advisors (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `current_version_id` 在 `CREATE TABLE` 階段不建立外鍵，由後續 `ALTER TABLE` 加上指向 `application_versions` 的複合外鍵。詳見下一節〈申請與版本的循環外鍵〉。
+- `applicant_email` 寫入前必須移除前後空白並轉為小寫，但不建立唯一索引。
+- 補件 Token Hash 使用 `BYTEA`，與 `users` 的 Token 相同處理方式。
+- `requested_total_points`、`approved_total_points` 與參與者點數的加總一致性由 Service 在 Transaction 中保證，資料庫層不建立跨表 `CHECK`。
+- `point_applications` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX point_applications_public_id_unique
+ON point_applications (public_id);
+
+CREATE UNIQUE INDEX point_applications_edit_token_hash_unique
+ON point_applications (edit_token_hash)
+WHERE edit_token_hash IS NOT NULL;
+
+CREATE INDEX idx_point_applications_status_submitted_at
+ON point_applications (status, submitted_at);
+
+CREATE INDEX idx_point_applications_advisor_status
+ON point_applications (advisor_id, status);
+```
+
+`point_applications_edit_token_hash_unique` 同時用於加速補件連結驗證查詢，並保證一個 Token 只能對應一個申請。`idx_point_applications_status_submitted_at` 與 `idx_point_applications_advisor_status` 對應承辦人待審列表與指導老師待簽核列表的常用查詢。
 
 ## 申請與版本的循環外鍵
 
