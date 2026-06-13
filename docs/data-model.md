@@ -306,8 +306,11 @@ UNIQUE (application_id, student_number);
 
 資料規則：
 
-- 一張申請只允許一位參與者，且該參與者必須是申請人。
+- 一張申請只允許一位參與者，且該參與者必須是申請人，由 Service 在 Transaction 內驗證。
 - 一張申請只能包含一個計畫；不同計畫必須分開申請。
+- `salary_start_month` 與 `salary_end_month` 固定保存該月份第一天（依 [Schema 設計規範](schema-conventions.md#時間與日期)），並由資料庫 CHECK 強制 `EXTRACT(DAY FROM ...) = 1`。
+- `salary_end_month` 必須大於或等於 `salary_start_month`。
+- `monthly_salary` 為新台幣元整數（`BIGINT`），必須大於 `0`。
 - `total_salary` 與 `calculated_points` 原則上由系統依規則計算，不由申請人手動輸入。
 - 不同計畫的薪資不可合併後再計算點數；各計畫分別建立申請，核准後由學生點數流水帳依學號加總。
 

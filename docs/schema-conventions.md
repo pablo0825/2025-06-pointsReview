@@ -224,11 +224,13 @@ CHECK (effective_to IS NULL OR effective_to > effective_from)
 
 ```sql
 CHECK (
-  (competition_level = 'other' AND competition_level_other IS NOT NULL)
+  (competition_level_requested = 'other' AND competition_level_other IS NOT NULL)
   OR
-  (competition_level <> 'other' AND competition_level_other IS NULL)
+  (competition_level_requested <> 'other' AND competition_level_other IS NULL)
 )
 ```
+
+審核欄位（如 `competition_level_approved`）審核前允許為 `NULL`，對應的 `*_approved_other` 也必須為 `NULL`；此類欄位需要三態 CHECK（兩端 NULL 或 兩端有值且符合 `'other'` 規則）。完整實作範例請參考 [資料庫 Schema](database-schema.md) 中各申請類型專屬資料表。
 
 其他規則：
 

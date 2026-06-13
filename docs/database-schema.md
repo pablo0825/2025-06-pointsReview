@@ -8,7 +8,7 @@
 - [x] `advisors`
 - [x] `point_applications`
 - [x] `application_participants`
-- [ ] 四種申請類型專屬資料表
+- [x] 四種申請類型專屬資料表
 - [x] 四種點數規則資料表
 - [ ] `application_attachments`
 - [ ] `application_review_actions`
@@ -528,3 +528,259 @@ EXCLUDE USING gist (
 2. 建立四張規則資料表（含內嵌 CHECK）。
 3. 為每張表建立 Exclusion Constraint。
 4. 為四張規則表各自掛上 `set_updated_at()` Trigger。
+
+## 申請類型專屬資料表
+
+四張類型專屬表共用以下模式：
+
+- `application_id` 為 `NOT NULL`，並透過 `UNIQUE` 確保與 `point_applications` 為一對一關係。
+- `*_point_rule_id` 為 `NOT NULL` 外鍵，指向對應的規則表，記錄送件時適用的歷史規則。
+- 所有 `*_other` 欄位皆使用條件式 `CHECK` 保證與其對應選項一致。
+- 補件採就地 `UPDATE`，歷史依賴 `application_versions.application_snapshot`。
+- 四張表皆需掛上共用 `set_updated_at()` Trigger。
+
+四張表必須在 `point_applications` 與對應規則表建立完成後才能建立。
+
+### `competition_application_details`
+
+```sql
+CREATE TABLE competition_application_details (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  competition_level_requested VARCHAR(40) NOT NULL,
+  competition_level_other VARCHAR(100),
+  competition_level_approved VARCHAR(40),
+  competition_level_approved_other VARCHAR(100),
+  competition_point_rule_id BIGINT NOT NULL,
+  competition_name VARCHAR(255) NOT NULL,
+  competition_category VARCHAR(100) NOT NULL,
+  award VARCHAR(30) NOT NULL,
+  award_other VARCHAR(100),
+  competition_date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT competition_application_details_level_requested_check
+    CHECK (competition_level_requested IN (
+      'international_integrated',
+      'international_non_integrated',
+      'national_integrated',
+      'national_non_integrated',
+      'other'
+    )),
+
+  CONSTRAINT competition_application_details_level_approved_check
+    CHECK (
+      competition_level_approved IS NULL
+      OR competition_level_approved IN (
+        'international_integrated',
+        'international_non_integrated',
+        'national_integrated',
+        'national_non_integrated',
+        'other'
+      )
+    ),
+
+  CONSTRAINT competition_application_details_level_other_pair_check
+    CHECK (
+      (competition_level_requested = 'other' AND competition_level_other IS NOT NULL)
+      OR
+      (competition_level_requested <> 'other' AND competition_level_other IS NULL)
+    ),
+
+  CONSTRAINT competition_application_details_level_approved_other_pair_check
+    CHECK (
+      (competition_level_approved IS NULL AND competition_level_approved_other IS NULL)
+      OR
+      (competition_level_approved = 'other' AND competition_level_approved_other IS NOT NULL)
+      OR
+      (competition_level_approved IS NOT NULL
+       AND competition_level_approved <> 'other'
+       AND competition_level_approved_other IS NULL)
+    ),
+
+  CONSTRAINT competition_application_details_award_check
+    CHECK (award IN (
+      'first_place',
+      'second_place',
+      'third_place',
+      'honorable_mention',
+      'other_award',
+      'finalist',
+      'participation'
+    )),
+
+  CONSTRAINT competition_application_details_award_other_pair_check
+    CHECK (
+      (award = 'other_award' AND award_other IS NOT NULL)
+      OR
+      (award <> 'other_award' AND award_other IS NULL)
+    ),
+
+  CONSTRAINT competition_application_details_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT competition_application_details_rule_fk
+    FOREIGN KEY (competition_point_rule_id) REFERENCES competition_point_rules (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT competition_application_details_application_unique
+    UNIQUE (application_id)
+);
+```
+
+`award` 使用 `'other_award'`（而非 `'other'`）作為「其他獎項」識別值，避免與 `competition_level_requested = 'other'` 在 SQL 查詢時產生視覺混淆。
+
+### `project_participation_details`
+
+```sql
+CREATE TABLE project_participation_details (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  project_point_rule_id BIGINT NOT NULL,
+  project_name VARCHAR(255) NOT NULL,
+  principal_investigator VARCHAR(100) NOT NULL,
+  salary_start_month DATE NOT NULL,
+  salary_end_month DATE NOT NULL,
+  monthly_salary BIGINT NOT NULL,
+  work_description TEXT NOT NULL,
+  total_salary BIGINT NOT NULL,
+  calculated_points NUMERIC(10, 2) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT project_participation_details_salary_start_month_first_day_check
+    CHECK (EXTRACT(DAY FROM salary_start_month) = 1),
+
+  CONSTRAINT project_participation_details_salary_end_month_first_day_check
+    CHECK (EXTRACT(DAY FROM salary_end_month) = 1),
+
+  CONSTRAINT project_participation_details_salary_month_range_check
+    CHECK (salary_end_month >= salary_start_month),
+
+  CONSTRAINT project_participation_details_monthly_salary_check
+    CHECK (monthly_salary > 0),
+
+  CONSTRAINT project_participation_details_total_salary_check
+    CHECK (total_salary > 0),
+
+  CONSTRAINT project_participation_details_calculated_points_check
+    CHECK (calculated_points >= 0),
+
+  CONSTRAINT project_participation_details_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT project_participation_details_rule_fk
+    FOREIGN KEY (project_point_rule_id) REFERENCES project_point_rules (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT project_participation_details_application_unique
+    UNIQUE (application_id)
+);
+```
+
+業務規則由 Service 在 Transaction 內保證，包括：
+
+- 一張參與計畫申請只允許一位 `application_participants`，且必須是申請人。
+- `total_salary` 由 `monthly_salary * 月份數`（含 start 與 end）計算。
+- `calculated_points` 由 `FLOOR(total_salary / salary_unit) * points_per_unit` 計算，並以申請使用的 `project_point_rules` 為準。
+
+### `certificate_application_details`
+
+```sql
+CREATE TABLE certificate_application_details (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  certificate_point_rule_id BIGINT NOT NULL,
+  certificate_name VARCHAR(255) NOT NULL,
+  issuing_organization VARCHAR(255) NOT NULL,
+  certificate_number VARCHAR(100) NOT NULL,
+  issued_date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT certificate_application_details_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT certificate_application_details_rule_fk
+    FOREIGN KEY (certificate_point_rule_id) REFERENCES certificate_point_rules (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT certificate_application_details_application_unique
+    UNIQUE (application_id)
+);
+```
+
+業務規則由 Service 保證：
+
+- 申請建立時自動將 `application_participants.requested_points` 設為 `2`（依適用 `certificate_point_rules.points_per_certificate`）。
+- 核准時 Service 在 Transaction 內查詢 `student_point_transactions` 中該學號的證照類累積點數，驗證核准後不會超過 `certificate_point_rules.maximum_points_per_student`。
+
+### `external_exhibition_details`
+
+```sql
+CREATE TABLE external_exhibition_details (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  exhibition_point_rule_id BIGINT NOT NULL,
+  exhibition_type VARCHAR(40) NOT NULL,
+  work_name VARCHAR(255) NOT NULL,
+  exhibition_name VARCHAR(50) NOT NULL,
+  exhibition_name_other VARCHAR(255),
+  organizer VARCHAR(255) NOT NULL,
+  venue VARCHAR(255) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT external_exhibition_details_exhibition_type_check
+    CHECK (exhibition_type IN (
+      'creative_work',
+      'graduation_project_exhibition'
+    )),
+
+  CONSTRAINT external_exhibition_details_exhibition_name_check
+    CHECK (exhibition_name IN (
+      'campus_exhibition',
+      'young_designers_exhibition',
+      'vision_get_wild',
+      'young_designers_exhibition_taiwan',
+      'a_plus_creative_festival',
+      'moe_project_competition',
+      'other'
+    )),
+
+  CONSTRAINT external_exhibition_details_exhibition_name_other_pair_check
+    CHECK (
+      (exhibition_name = 'other' AND exhibition_name_other IS NOT NULL)
+      OR
+      (exhibition_name <> 'other' AND exhibition_name_other IS NULL)
+    ),
+
+  CONSTRAINT external_exhibition_details_date_range_check
+    CHECK (end_date >= start_date),
+
+  CONSTRAINT external_exhibition_details_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT external_exhibition_details_rule_fk
+    FOREIGN KEY (exhibition_point_rule_id) REFERENCES exhibition_point_rules (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT external_exhibition_details_application_unique
+    UNIQUE (application_id)
+);
+```
+
+`exhibition_type` 的允許值與 `exhibition_point_rules.exhibition_type` 完全相同；雖然規則表本身已有 CHECK，類型專屬表也保留 CHECK 作為寫入防呆。
+
+### 建立順序
+
+1. 確認 `point_applications`、`application_participants` 與四張規則表已建立。
+2. 依任意順序建立四張類型專屬資料表（彼此不互相依賴）。
+3. 為每張表掛上 `set_updated_at()` Trigger。
