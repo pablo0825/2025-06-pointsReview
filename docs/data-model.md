@@ -498,32 +498,28 @@ UNIQUE (application_id, student_number);
 | `advisor_rejected` | 指導老師拒絕申請 | 是 |
 | `revision_requested` | 承辦人要求申請人補件 | 是 |
 | `resubmitted` | 申請人完成補件並重新提交 | 否 |
-| `reviewer_approved` | 承辦人核准申請 | 否，若包含調整則需填寫 |
+| `reviewer_approved` | 承辦人核准申請（可能含調整） | 若 `metadata` 含調整則必填 |
 | `reviewer_rejected` | 承辦人拒絕申請 | 是 |
-| `reviewer_adjusted` | 承辦人調整申請認定或核准點數 | 是 |
 | `revision_expired` | 申請人未於補件期限內重新提交，系統將申請作廢 | 是 |
 | `advisor_confirmation_expired` | 指導老師於期限內未完成簽核，系統將申請作廢 | 是 |
 
-例如 `reviewer_adjusted` 代表新增一筆審核操作紀錄，實際保存方式是：
-
-```text
-application_review_actions.action_type = reviewer_adjusted
-```
-
-系統不會建立名為 `reviewer_adjusted` 的資料表。
+承辦人核准採「一次核准 = 一筆 `reviewer_approved`」設計，若該次核准包含等級或點數調整，將調整內容寫入 `metadata`，並必須填寫 `reason`。不再保留 `reviewer_adjusted` 作為獨立 action，避免「調整」與「核准」事件流分離造成混淆。
 
 資料規則：
 
-- `advisor_rejected`、`revision_requested`、`reviewer_rejected` 與 `reviewer_adjusted` 必須填寫 `reason`。
-- 承辦人調整申請認定或核准點數時，建立 `reviewer_adjusted` 紀錄。
-- `metadata` 可保存競賽等級、參與者點數及申請總點數的調整前後資料。
-- 申請人重新提交時，`actor_type` 為 `applicant`，`actor_user_id` 為 `NULL`。
-- 系統自動作廢申請時，`actor_type` 為 `system`，`actor_user_id` 為 `NULL`。
+- 必填 `reason` 的 action：`advisor_rejected`、`revision_requested`、`reviewer_rejected`、`revision_expired`、`advisor_confirmation_expired`，由資料庫 `CHECK` 保證。
+- `reviewer_approved` 若 `metadata` 含調整資料，`reason` 必填，由 Service 在 Transaction 內驗證。
+- `metadata` 可保存競賽等級、參與者點數及申請總點數的調整前後資料；無調整時為 `NULL`。
+- `actor_user_id` 與 `actor_type` 必須配對：`actor_type` 為 `advisor` 或 `reviewer` 時 `actor_user_id` 不可為 `NULL`；`actor_type` 為 `applicant` 或 `system` 時 `actor_user_id` 必須為 `NULL`，由資料庫 `CHECK` 保證。
+- `ip_address` 與 `user_agent` 在 `actor_type = 'system'` 時為 `NULL`（背景排程沒有 request 來源），其他 `actor_type` 必須非 `NULL`，由資料庫 `CHECK` 保證。
+- 申請人重新提交時，`actor_type` 為 `applicant`，`actor_user_id` 為 `NULL`，但仍須記錄瀏覽器 IP 與 UA。
+- 系統自動作廢申請時，`actor_type` 為 `system`，`actor_user_id`、`ip_address` 與 `user_agent` 皆為 `NULL`。
 - 每次要求補件與重新提交都新增紀錄，不覆蓋舊紀錄。
 - 承辦人不需要電子簽名，登入帳號、操作時間、IP 與瀏覽器資訊作為責任追蹤依據。
 - 承辦人核准前，系統應顯示最終核准資料與確認畫面。
 - 承辦人拒絕、要求補件或調整點數時，必須填寫原因。
 - 申請核准後不可直接修改結果，只能透過點數流水帳新增調整或沖銷紀錄。
+- `application_review_actions` 屬於不可變稽核紀錄，沒有 `updated_at`，不掛 `set_updated_at()` Trigger。
 
 調整紀錄範例：
 

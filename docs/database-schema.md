@@ -11,7 +11,7 @@
 - [x] 四種申請類型專屬資料表
 - [x] 四種點數規則資料表
 - [x] `application_attachments`
-- [ ] `application_review_actions`
+- [x] `application_review_actions`
 - [x] `application_versions`
 - [x] `advisor_signatures`
 - [ ] `student_point_change_requests`
@@ -957,3 +957,94 @@ ON application_attachments (application_id);
 1. 確認 `point_applications` 與 `application_versions` 已建立，且 `application_versions` 已有 `UNIQUE (id, application_id)`。
 2. 建立 `application_attachments`。
 3. 建立三個索引。
+
+## `application_review_actions`
+
+```sql
+CREATE TABLE application_review_actions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_id BIGINT NOT NULL,
+  actor_user_id BIGINT,
+  actor_type VARCHAR(20) NOT NULL,
+  action_type VARCHAR(40) NOT NULL,
+  reason TEXT,
+  metadata JSONB,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_review_actions_actor_type_check
+    CHECK (actor_type IN ('advisor', 'reviewer', 'applicant', 'system')),
+
+  CONSTRAINT application_review_actions_action_type_check
+    CHECK (action_type IN (
+      'advisor_approved',
+      'advisor_rejected',
+      'revision_requested',
+      'resubmitted',
+      'reviewer_approved',
+      'reviewer_rejected',
+      'revision_expired',
+      'advisor_confirmation_expired'
+    )),
+
+  CONSTRAINT application_review_actions_actor_pair_check
+    CHECK (
+      (actor_type IN ('applicant', 'system') AND actor_user_id IS NULL)
+      OR
+      (actor_type IN ('advisor', 'reviewer') AND actor_user_id IS NOT NULL)
+    ),
+
+  CONSTRAINT application_review_actions_audit_fields_check
+    CHECK (
+      (actor_type = 'system' AND ip_address IS NULL AND user_agent IS NULL)
+      OR
+      (actor_type <> 'system' AND ip_address IS NOT NULL AND user_agent IS NOT NULL)
+    ),
+
+  CONSTRAINT application_review_actions_reason_required_check
+    CHECK (
+      action_type IN ('advisor_approved', 'resubmitted', 'reviewer_approved')
+      OR reason IS NOT NULL
+    ),
+
+  CONSTRAINT application_review_actions_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT application_review_actions_actor_user_fk
+    FOREIGN KEY (actor_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `application_review_actions` 為不可變稽核紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- 不保留 `reviewer_adjusted` 作為獨立 action；承辦人核准若含調整，寫入 `reviewer_approved` 並將調整資料保存於 `metadata`，`reason` 必填（由 Service 驗證）。
+- `actor_user_id` 在 `applicant` 與 `system` 操作時為 `NULL`；由 `actor_pair_check` 強制。
+- `ip_address` 與 `user_agent` 僅在 `system` 操作時為 `NULL`；由 `audit_fields_check` 強制。
+- `reason_required_check` 排除三個本身不要求 `reason` 的 action（`advisor_approved`、`resubmitted`、`reviewer_approved`），其他 action 都必須有 `reason`。`reviewer_approved` 含調整時是否要 `reason` 由 Service 依 `metadata` 內容驗證。
+- `metadata` 預設為 `NULL`，僅在有調整時寫入結構化資料。
+- 不可實體刪除既有紀錄。
+
+索引：
+
+```sql
+CREATE INDEX idx_application_review_actions_application_created
+ON application_review_actions (application_id, created_at);
+
+CREATE INDEX idx_application_review_actions_actor_created
+ON application_review_actions (actor_user_id, created_at)
+WHERE actor_user_id IS NOT NULL;
+```
+
+`idx_application_review_actions_application_created` 加速「列出某申請的審核歷史按時間排序」查詢。`idx_application_review_actions_actor_created` 加速「列出某使用者操作過的審核紀錄」，使用 Partial Index 排除 `applicant`／`system` 操作（這類紀錄不需要按 user 查）。
+
+建立順序：
+
+1. 確認 `point_applications` 與 `users` 已建立。
+2. 建立 `application_review_actions`。
+3. 建立兩個索引。
