@@ -10,7 +10,7 @@
 - [x] `application_participants`
 - [x] 四種申請類型專屬資料表
 - [x] 四種點數規則資料表
-- [ ] `application_attachments`
+- [x] `application_attachments`
 - [ ] `application_review_actions`
 - [x] `application_versions`
 - [x] `advisor_signatures`
@@ -872,3 +872,88 @@ WHERE invalidated_at IS NULL;
 1. 確認 `users` 與 `application_versions` 已建立。
 2. 建立 `advisor_signatures`。
 3. 建立 `one_valid_signature_per_version` Partial Unique Index。
+
+## `application_attachments`
+
+```sql
+CREATE TABLE application_attachments (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  public_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  application_id BIGINT NOT NULL,
+  application_version_id BIGINT NOT NULL,
+  attachment_type VARCHAR(50) NOT NULL,
+  attachment_type_other VARCHAR(100),
+  description TEXT,
+  original_filename VARCHAR(255) NOT NULL,
+  storage_key TEXT NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_size BIGINT NOT NULL,
+  uploaded_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_attachments_attachment_type_check
+    CHECK (attachment_type IN (
+      'competition_rules',
+      'competition_poster',
+      'official_website_screenshot',
+      'official_document',
+      'participation_proof',
+      'finalist_or_award_certificate',
+      'salary_proof',
+      'certificate_copy',
+      'exhibition_photo',
+      'exhibition_poster',
+      'other'
+    )),
+
+  CONSTRAINT application_attachments_attachment_type_other_pair_check
+    CHECK (
+      (attachment_type = 'other' AND attachment_type_other IS NOT NULL)
+      OR
+      (attachment_type <> 'other' AND attachment_type_other IS NULL)
+    ),
+
+  CONSTRAINT application_attachments_file_size_check
+    CHECK (file_size > 0),
+
+  CONSTRAINT application_attachments_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT application_attachments_version_application_fk
+    FOREIGN KEY (application_version_id, application_id)
+    REFERENCES application_versions (id, application_id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `application_attachments` 為不可變紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- 補件保留附件採 INSERT 新 row 的設計，允許多筆 row 共用同一 `storage_key`；因此 `storage_key` 本身不建立全域 UNIQUE。
+- 複合外鍵 `(application_version_id, application_id) → application_versions (id, application_id)` 確保附件的版本確實屬於同一筆申請；複用 `application_versions` 為循環外鍵建立的 `UNIQUE (id, application_id)`。
+- 每筆申請最多 10 個附件、每檔最多 5 MB、檔案格式限制 PDF/JPEG/PNG 等規則，由上傳處理層與 Service 保證，資料庫層不建立額外 CHECK 以保留調整彈性。
+- 各申請類型最低附件要求（如競賽申請需 `participation_proof` 或 `finalist_or_award_certificate`）由 Service 在送件 Transaction 內驗證。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX application_attachments_public_id_unique
+ON application_attachments (public_id);
+
+CREATE UNIQUE INDEX application_attachments_version_storage_unique
+ON application_attachments (application_version_id, storage_key);
+
+CREATE INDEX idx_application_attachments_application_id
+ON application_attachments (application_id);
+```
+
+`application_attachments_version_storage_unique` 防止同一版本內 INSERT 兩筆指向同檔案的 row。`idx_application_attachments_application_id` 加速「列出某申請所有版本的附件」查詢；雖然 `application_attachments_version_application_fk` 已涉及 `application_id`，但 PostgreSQL 並不自動為複合 FK 的所有前綴欄位建立 index。
+
+建立順序：
+
+1. 確認 `point_applications` 與 `application_versions` 已建立，且 `application_versions` 已有 `UNIQUE (id, application_id)`。
+2. 建立 `application_attachments`。
+3. 建立三個索引。

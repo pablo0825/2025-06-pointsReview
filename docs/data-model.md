@@ -392,21 +392,37 @@ UNIQUE (application_id, student_number);
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
-| `public_id` | 對外附件識別值，使用 UUID |
+| `public_id` | 對外附件識別值，使用 UUID，必須唯一 |
 | `application_id` | 關聯 `point_applications.id` |
 | `application_version_id` | 關聯 `application_versions.id`，表示附件屬於哪一版申請 |
 | `attachment_type` | 附件類型，例如獎狀、證照或薪資證明 |
 | `attachment_type_other` | 選擇其他附件類型時填寫，可為 `NULL` |
 | `description` | 附件補充說明，可為 `NULL` |
-| `original_filename` | 上傳時的原始檔名 |
-| `storage_key` | 私有檔案儲存識別值 |
-| `mime_type` | 檔案格式 |
-| `file_size` | 檔案大小 |
-| `uploaded_at` | 上傳時間 |
+| `original_filename` | 上傳時的原始檔名，使用 `VARCHAR(255)` |
+| `storage_key` | 私有檔案儲存識別值，使用 `TEXT` |
+| `mime_type` | 檔案格式，使用 `VARCHAR(100)` |
+| `file_size` | 檔案大小（位元組），使用 `BIGINT` |
+| `uploaded_at` | 上傳時間（業務語意欄位） |
+| `created_at` | 建立時間（資料列建立時間，與 `uploaded_at` 同步寫入） |
+
+`application_attachments` 屬於不可變紀錄，**沒有 `updated_at` 欄位，不掛 `set_updated_at()` Trigger**。
 
 附件實體檔案放在私有儲存空間，資料庫只保存 `storage_key`。檔案必須經過登入及權限驗證後才能下載。
 
-補件時可以保留舊版本附件；新上傳或保留至新版本的附件，應與新的 `application_version_id` 建立關聯。
+補件版本處理：
+
+- 附件採**每版本一筆 row** 的設計，補件保留舊附件時 **INSERT 新一筆**，沿用同一 `storage_key`、`original_filename`、`mime_type` 與 `file_size`；只有 `application_version_id` 與 `public_id` 不同。
+- 補件新上傳的附件 INSERT 新 row、新 `storage_key`。
+- 舊版本對應的附件 row 保持不變，不會被刪除或修改。
+- 因此同一個 `storage_key` 可能對應多筆 attachment row（每版本一筆），但 `application_version_id` 永遠指向附件屬於的特定版本。
+- 此設計讓 `application_attachments` 成為「所有版本附件的完整歷史」，與 `application_versions.application_snapshot` 「不含附件」的決策相互支撐。
+
+跨表完整性：
+
+- 使用複合外鍵 `FOREIGN KEY (application_version_id, application_id) REFERENCES application_versions (id, application_id)`，確保附件的 `application_version_id` 確實屬於同一筆 `application_id`，由資料庫保證一致性。
+- 同一版本內不會出現兩筆指向同一 `storage_key` 的附件 row，由 `UNIQUE (application_version_id, storage_key)` 限制。
+
+附件數量上限（每筆申請最多 10 個）由 Service 在送件 Transaction 內用 `SELECT ... FOR UPDATE` 計數驗證，資料庫層不建立跨資料列 CHECK。
 
 附件類型預計值：
 
