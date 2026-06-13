@@ -80,13 +80,13 @@ erDiagram
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
-| `user_id` | 關聯 `users.id` |
-| `employee_number` | 教師編號 |
+| `user_id` | 關聯 `users.id`，且必須唯一 |
+| `employee_number` | 教師編號，必須唯一 |
 | `name` | 教師姓名 |
 | `title` | 職稱 |
 | `department` | 所屬系所或單位 |
 | `is_director` | 是否為目前主任，預設為 `false` |
-| `is_active` | 是否可被選擇 |
+| `is_active` | 是否可被選擇，預設為 `true` |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
@@ -96,13 +96,32 @@ erDiagram
 
 主任仍使用指導老師帳號登入，`is_director` 只表示該教師目前兼任主任，不代表額外的審核角色。
 
-資料規則：
+帳號與身分關聯規則：
+
+- `user_id` 必須為 `NOT NULL` 且唯一，確保每位指導老師都有對應的登入帳號，且一個帳號不會同時對應多位老師。
+- 對應的 `users.role` 必須為 `advisor`，由 Service 層在建立及修改時驗證。
+- 管理員建立指導老師時，必須在同一個 PostgreSQL Transaction 中完成 `users` 與 `advisors` 的建立，避免出現有 `users` 紀錄但缺少 `advisors` 對應的中間狀態。
+
+主任資料規則：
 
 - 系統同一時間最多只能有一位 `is_active = true` 且 `is_director = true` 的主任。
-- 建議使用 partial unique index 限制只能存在一位啟用中的主任。
+- 使用 partial unique index 限制只能存在一位啟用中的主任。
 - 主任異動時，將舊主任的 `is_director` 設為 `false`，再將新主任設為 `true`，不可刪除舊主任資料。
+- 主任異動兩步操作必須在同一個 PostgreSQL Transaction 中完成，避免短暫出現兩位主任或無主任的狀態。
 - 申請核准後，系統使用主任所關聯的 `users.email` 寄送核准通知。
 - 主任僅接收核准通知與備份，不需要再次核准或簽名。
+
+下拉選單可被選的判斷條件：
+
+申請表單只顯示同時符合下列條件的指導老師：
+
+```sql
+advisors.is_active = TRUE
+AND users.is_active = TRUE
+AND users.activated_at IS NOT NULL
+```
+
+未完成首次帳號啟用的教師即使 `advisors.is_active = true`，也不會出現在選單中，避免申請人選到無法簽名的老師。
 
 建議索引：
 

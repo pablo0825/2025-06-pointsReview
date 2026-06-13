@@ -5,7 +5,7 @@
 ## Schema 完成狀態
 
 - [x] `users`
-- [ ] `advisors`
+- [x] `advisors`
 - [ ] `point_applications`
 - [ ] `application_participants`
 - [ ] 四種申請類型專屬資料表
@@ -98,6 +98,59 @@ WHERE role = 'admin' AND is_active = TRUE;
 ```
 
 Token Hash Partial Unique Index 同時用於加速連結驗證查詢，並保證一個 Token 只能對應一個帳號。
+
+## `advisors`
+
+```sql
+CREATE TABLE advisors (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  employee_number VARCHAR(50) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  title VARCHAR(100) NOT NULL,
+  department VARCHAR(100) NOT NULL,
+  is_director BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT advisors_user_id_fk
+    FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `user_id` 為 `NOT NULL` 且必須唯一，每位指導老師對應一個 `users` 帳號。
+- `employee_number` 必須唯一，避免重複建立同一位教師資料。
+- `is_active` 預設為 `TRUE`，與 `users.is_active` 預設 `FALSE` 不同；指導老師建立後通常立即可被選取，但實際是否出現在申請選單仍須搭配 `users.is_active` 與 `users.activated_at` 條件查詢。
+- 對應的 `users.role` 必須為 `advisor`，由 Service 層在建立及修改時驗證，資料庫不額外建立跨表 `CHECK`。
+- `advisors` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX advisors_user_id_unique
+ON advisors (user_id);
+
+CREATE UNIQUE INDEX advisors_employee_number_unique
+ON advisors (employee_number);
+
+CREATE UNIQUE INDEX one_active_director
+ON advisors (is_director)
+WHERE is_director = TRUE AND is_active = TRUE;
+```
+
+`one_active_director` Partial Unique Index 保證同一時間最多只能存在一位 `is_active = TRUE AND is_director = TRUE` 的主任。主任異動兩步操作必須在同一個 Transaction 中完成。
+
+建立順序：
+
+1. 建立 `users` 資料表（已完成）。
+2. 建立 `advisors` 資料表。
+3. 建立 `advisors_user_id_unique`、`advisors_employee_number_unique` 與 `one_active_director` 索引。
+4. 為 `advisors` 掛上 `set_updated_at()` Trigger。
 
 ## 申請與版本的循環外鍵
 
