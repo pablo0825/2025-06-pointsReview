@@ -318,11 +318,19 @@ EXCLUDE USING gist (
 
 - 承辦人只能查看自己提出的異動申請；管理員可以查看所有待審核及歷史異動申請。
 - `reason` 必填。
-- `adjustment` 的 `requested_points` 可以是正數或負數，但異動後的學生該筆來源點數不得小於 `0`。
-- `reversal` 的 `requested_points` 必須等於原始點數尚未被沖銷的相反數。
-- 同一筆原始點數不可存在多筆尚未完成的 `pending` 異動申請。
+- `requested_points` 不可為 `0`，由資料庫 `CHECK` 強制（`0` 沒有業務意義的異動）。
+- `adjustment` 的 `requested_points` 可以是正數或負數，但異動後的學生該筆來源點數不得小於 `0`，由 Service 驗證。
+- `reversal` 的 `requested_points` 必須等於原始點數尚未被沖銷的相反數，由 Service 驗證。
+- `status` 與 `reviewed_by_user_id`、`reviewed_at`、`reviewed_reason`、`created_transaction_id` 的配對由資料庫多態 `CHECK` 強制：
+  - `pending`：以上四欄皆為 `NULL`。
+  - `approved`：`reviewed_by_user_id`、`reviewed_at`、`created_transaction_id` 必須非 `NULL`（`reviewed_reason` 可選）。
+  - `rejected`：`reviewed_by_user_id`、`reviewed_at`、`reviewed_reason` 必須非 `NULL`，`created_transaction_id` 必須為 `NULL`。
+- 同一筆原始點數不可存在多筆尚未完成的 `pending` 異動申請，由 partial unique index 保證。
+- 一筆 `student_point_transactions` 紀錄最多只能來自一筆 `student_point_change_requests`，由 `created_transaction_id` 的 partial unique index 保證。
 - 管理員核准異動申請、建立點數流水帳及更新 `created_transaction_id`，必須在同一個 PostgreSQL Transaction 中完成。
 - 異動申請核准或拒絕後不可修改。
+- `requested_by_user_id` 與 `reviewed_by_user_id` 業務上分屬承辦人與管理員，由 Service 依角色驗證；資料庫層不加跨表 `CHECK`。
+- 本表不另外保存 `ip_address` 與 `user_agent`；詳細稽核紀錄依賴規劃中的通用 `audit_logs` 表。
 
 權限邊界：
 
@@ -449,31 +457,7 @@ WHERE student_number = $1;
 | `total_points` | 所有類別累積總點數 |
 | `updated_at` | 最後一筆點數異動時間 |
 
-概念 SQL：
-
-```sql
-CREATE VIEW student_points_summary AS
-SELECT
-  student_number,
-  MAX(student_name_snapshot) AS student_name,
-  MAX(class_name_snapshot) AS class_name,
-  COALESCE(SUM(points) FILTER (
-    WHERE point_category = 'competition'
-  ), 0) AS competition_points,
-  COALESCE(SUM(points) FILTER (
-    WHERE point_category = 'project_participation'
-  ), 0) AS project_participation_points,
-  COALESCE(SUM(points) FILTER (
-    WHERE point_category = 'certificate'
-  ), 0) AS certificate_points,
-  COALESCE(SUM(points) FILTER (
-    WHERE point_category = 'external_exhibition'
-  ), 0) AS external_exhibition_points,
-  COALESCE(SUM(points), 0) AS total_points,
-  MAX(created_at) AS updated_at
-FROM student_point_transactions
-GROUP BY student_number;
-```
+View 透過 `DISTINCT ON (student_number) ORDER BY created_at DESC` 取得每位學生最後一次點數異動寫入的姓名與班級快照，並用 `SUM(points) FILTER (...)` 計算各類別累積點數。完整可執行 SQL 請參考 [資料庫 Schema](database-schema.md#student_points_summary-view)。
 
 查詢功能：
 

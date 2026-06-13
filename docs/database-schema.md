@@ -14,9 +14,9 @@
 - [x] `application_review_actions`
 - [x] `application_versions`
 - [x] `advisor_signatures`
-- [ ] `student_point_change_requests`
+- [x] `student_point_change_requests`
 - [x] `student_point_transactions`
-- [ ] `student_points_summary` View
+- [x] `student_points_summary` View
 
 ## 共用資料庫物件
 
@@ -1159,3 +1159,167 @@ WHERE transaction_type = 'award';
 1. 確認 `point_applications`、`application_participants`（含 `UNIQUE (id, application_id)`）與 `users` 已建立。
 2. 建立 `student_point_transactions`。
 3. 建立五個索引。
+
+## `student_point_change_requests`
+
+```sql
+CREATE TABLE student_point_change_requests (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  public_id UUID NOT NULL DEFAULT gen_random_uuid(),
+  target_transaction_id BIGINT NOT NULL,
+  requested_by_user_id BIGINT NOT NULL,
+  reviewed_by_user_id BIGINT,
+  change_type VARCHAR(20) NOT NULL,
+  requested_points NUMERIC(10, 2) NOT NULL,
+  reason TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  reviewed_reason TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_transaction_id BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT student_point_change_requests_change_type_check
+    CHECK (change_type IN ('adjustment', 'reversal')),
+
+  CONSTRAINT student_point_change_requests_status_check
+    CHECK (status IN ('pending', 'approved', 'rejected')),
+
+  CONSTRAINT student_point_change_requests_requested_points_check
+    CHECK (requested_points <> 0),
+
+  CONSTRAINT student_point_change_requests_status_fields_check
+    CHECK (
+      (status = 'pending'
+        AND reviewed_by_user_id IS NULL
+        AND reviewed_at IS NULL
+        AND reviewed_reason IS NULL
+        AND created_transaction_id IS NULL)
+      OR
+      (status = 'approved'
+        AND reviewed_by_user_id IS NOT NULL
+        AND reviewed_at IS NOT NULL
+        AND created_transaction_id IS NOT NULL)
+      OR
+      (status = 'rejected'
+        AND reviewed_by_user_id IS NOT NULL
+        AND reviewed_at IS NOT NULL
+        AND reviewed_reason IS NOT NULL
+        AND created_transaction_id IS NULL)
+    ),
+
+  CONSTRAINT student_point_change_requests_target_fk
+    FOREIGN KEY (target_transaction_id) REFERENCES student_point_transactions (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_change_requests_requested_by_user_fk
+    FOREIGN KEY (requested_by_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_change_requests_reviewed_by_user_fk
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT student_point_change_requests_created_transaction_fk
+    FOREIGN KEY (created_transaction_id) REFERENCES student_point_transactions (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- 多態 `CHECK` 強制三種 `status` 對應的欄位狀態，避免出現「approved 但 created_transaction_id NULL」等不一致。
+- `requested_points <> 0` 由資料庫保證；正負方向與業務上限（adjustment 後不得 < 0、reversal 必須等於原始相反數）由 Service 驗證。
+- 不保存 `ip_address` 與 `user_agent`；詳細稽核依賴規劃中的 `audit_logs` 表（見 [待決策項目](open-decisions.md#4-通用系統稽核紀錄)）。
+- `requested_by_user_id` 應為承辦人，`reviewed_by_user_id` 應為管理員，由 Service 依 `users.role` 驗證。
+- `student_point_change_requests` 必須掛上共用 `set_updated_at()` Trigger（status 從 `pending` 變更時會 UPDATE）。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX student_point_change_requests_public_id_unique
+ON student_point_change_requests (public_id);
+
+CREATE UNIQUE INDEX one_pending_change_per_transaction
+ON student_point_change_requests (target_transaction_id)
+WHERE status = 'pending';
+
+CREATE UNIQUE INDEX one_change_per_created_transaction
+ON student_point_change_requests (created_transaction_id)
+WHERE created_transaction_id IS NOT NULL;
+
+CREATE INDEX idx_student_point_change_requests_status_created
+ON student_point_change_requests (status, created_at);
+
+CREATE INDEX idx_student_point_change_requests_requested_by_user
+ON student_point_change_requests (requested_by_user_id);
+```
+
+各索引用途：
+
+- `student_point_change_requests_public_id_unique`：對外管理後台 URL 查詢。
+- `one_pending_change_per_transaction`：同一筆原始點數同時間最多只能有一筆 `pending` 異動申請。
+- `one_change_per_created_transaction`：一筆 `student_point_transactions` 最多只能由一筆 change_request 建立。
+- `idx_status_created`：管理員待審列表。
+- `idx_requested_by_user`：承辦人查自己提出的異動申請。
+
+建立順序：
+
+1. 確認 `student_point_transactions` 與 `users` 已建立。
+2. 建立 `student_point_change_requests`。
+3. 建立五個索引。
+4. 為 `student_point_change_requests` 掛上 `set_updated_at()` Trigger。
+
+## `student_points_summary` View
+
+從 `student_point_transactions` 即時加總每位學生各類別累積點數。第一版使用 PostgreSQL View，不維護實體 Materialized View。
+
+```sql
+CREATE VIEW student_points_summary AS
+WITH latest_snapshot AS (
+  SELECT DISTINCT ON (student_number)
+    student_number,
+    student_name_snapshot AS student_name,
+    class_name_snapshot AS class_name
+  FROM student_point_transactions
+  ORDER BY student_number, created_at DESC
+)
+SELECT
+  t.student_number,
+  ls.student_name,
+  ls.class_name,
+  COALESCE(SUM(t.points) FILTER (
+    WHERE t.point_category = 'competition'
+  ), 0) AS competition_points,
+  COALESCE(SUM(t.points) FILTER (
+    WHERE t.point_category = 'project_participation'
+  ), 0) AS project_participation_points,
+  COALESCE(SUM(t.points) FILTER (
+    WHERE t.point_category = 'certificate'
+  ), 0) AS certificate_points,
+  COALESCE(SUM(t.points) FILTER (
+    WHERE t.point_category = 'external_exhibition'
+  ), 0) AS external_exhibition_points,
+  COALESCE(SUM(t.points), 0) AS total_points,
+  MAX(t.created_at) AS updated_at
+FROM student_point_transactions t
+JOIN latest_snapshot ls USING (student_number)
+GROUP BY t.student_number, ls.student_name, ls.class_name;
+```
+
+設計說明：
+
+- 透過 `DISTINCT ON (student_number) ORDER BY created_at DESC` 取得每位學生**最後一次**點數異動寫入時的姓名與班級快照，避免 `MAX(name)` 取到字串最大值的錯誤行為。
+- 各類別總點數使用 `SUM(points) FILTER (WHERE point_category = ...)`，並以 `COALESCE(..., 0)` 處理無紀錄情形。
+- `updated_at` 為該學生「最後一筆點數異動建立時間」，作為資料新鮮度顯示。
+- View 回傳完整 `student_number` 與 `student_name`；公開 API 必須在回傳前以遮罩格式輸出（見 [點數系統](point-system.md#公開資料遮罩)）。
+- 若日後資料量增加導致即時計算成本過高，可改為 Materialized View 並排程 `REFRESH MATERIALIZED VIEW`。
+
+建立順序：
+
+1. 確認 `student_point_transactions` 已建立並完成索引。
+2. 建立 `student_points_summary` View。

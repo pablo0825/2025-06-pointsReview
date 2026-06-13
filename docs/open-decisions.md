@@ -107,7 +107,7 @@ audit_logs
 
 ### 5. PostgreSQL Schema 詳細設計
 
-邏輯資料模型、共用 Schema 規範與可執行 SQL 已拆分管理。目前 `users` 已完成可轉換為 Migration 的 PostgreSQL Schema，其餘資料表仍需逐張確認。
+邏輯資料模型、共用 Schema 規範與可執行 SQL 已拆分管理。**所有資料表與 `student_points_summary` View 的 PostgreSQL Schema 已完成**，可直接轉換為 Migration。
 
 目前已確認：
 
@@ -143,7 +143,7 @@ audit_logs
 
 仍需討論：
 
-- 除 `users`、`advisors`、`point_applications`、`application_participants`、`application_versions`、`advisor_signatures`、`application_attachments`、`application_review_actions`、`student_point_transactions`、四張點數規則資料表與四張類型專屬資料表外，其餘資料表套用共用型別規範後，各欄位的最終型別與 `NULL` 限制。
+- （PostgreSQL Schema 詳細設計已完成所有資料表，本項目可移除。）
 
 ### 6. Migration 與初始資料 Seed
 
