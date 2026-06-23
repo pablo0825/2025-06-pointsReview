@@ -41,6 +41,8 @@
 
 第一版建議以 PostgreSQL `CHECK` constraint 限制狀態值，避免 PostgreSQL enum 在狀態仍可能調整時不易修改。
 
+進入終止狀態 `approved` 或 `rejected` 時，必須同時寫入 `point_applications.closed_at`；其他進行中狀態的 `closed_at` 必須為 `NULL`。
+
 ### 補件 Token
 
 `edit_token_hash` 與 `edit_token_expires_at` 只在承辦人要求補件時使用。
@@ -103,6 +105,7 @@ Email 寄送失敗重試與尚未處理提醒是不同流程：
 系統自動寄送三次指導老師簽核提醒。最終期限內仍未簽核時：
 
 - 將申請狀態設為 `rejected`。
+- 寫入 `point_applications.closed_at`。
 - 新增 `advisor_confirmation_expired` 審核操作紀錄。
 - `actor_type` 設為 `system`。
 - 寄送申請作廢通知給申請人。
@@ -116,9 +119,10 @@ Email 寄送失敗重試與尚未處理提醒是不同流程：
 1. 承辦人要求補件後，系統立即寄送補件通知。
 2. 到期前 `24` 小時，系統寄送一次補件提醒。
 3. 到期仍未重新提交時，將申請狀態設為 `rejected`。
-4. 清除 `edit_token_hash` 與 `edit_token_expires_at`。
-5. 新增 `revision_expired` 審核操作紀錄，`actor_type` 設為 `system`。
-6. 寄送申請作廢通知給申請人。
+4. 寫入 `point_applications.closed_at`。
+5. 清除 `edit_token_hash` 與 `edit_token_expires_at`。
+6. 新增 `revision_expired` 審核操作紀錄，`actor_type` 設為 `system`。
+7. 寄送申請作廢通知給申請人。
 
 提醒信寄送失敗不會自動延長補件期限。
 
@@ -139,7 +143,7 @@ stateDiagram-v2
     needs_revision --> pending_advisor: 申請人完成補件
 ```
 
-`approved` 與 `rejected` 都是終止狀態。被指導老師或承辦人拒絕後，本次申請作廢，不能再次修改或補件。
+`approved` 與 `rejected` 都是終止狀態，進入終止狀態時必須寫入 `point_applications.closed_at`。被指導老師或承辦人拒絕後，本次申請作廢，不能再次修改或補件。
 
 ## 多次補件與重新簽名流程
 

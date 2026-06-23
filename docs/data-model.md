@@ -151,10 +151,13 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | `edit_token_hash` | 補件連結 Token 的雜湊值，可為 `NULL` |
 | `edit_token_expires_at` | 補件連結到期時間，可為 `NULL` |
 | `submitted_at` | 首次送件時間 |
+| `closed_at` | 申請流程結束時間，未進入終止狀態前為 `NULL` |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
 申請人三件套（`applicant_name`、`applicant_email`、`applicant_phone`）皆為 `NOT NULL`。申請建立等同於送件，沒有草稿階段，因此 `submitted_at` 在首次建立時等於 `created_at`，但保留獨立欄位以便清楚標示業務意涵，並作為點數規則版本查詢依據。
+
+`closed_at` 代表申請流程結束時間。當 `status` 為終止狀態 `approved` 或 `rejected` 時，`closed_at` 必須有值；當 `status` 仍為 `pending_advisor`、`under_review` 或 `needs_revision` 時，`closed_at` 必須為 `NULL`。狀態與 `closed_at` 的配對由 PostgreSQL `CHECK` constraint 保證。
 
 `edit_token_hash` 與 `edit_token_expires_at` 必須同時為 `NULL` 或同時非 `NULL`，由 PostgreSQL `CHECK` constraint 保證。補件 Token 雜湊使用 `BYTEA`，與 `users` 的啟用與密碼重設 Token 相同處理方式，並建立非 `NULL` 值的 Partial Unique Index 防止 Token 撞號並加速查詢。
 

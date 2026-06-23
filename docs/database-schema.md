@@ -170,6 +170,7 @@ CREATE TABLE point_applications (
   edit_token_hash BYTEA,
   edit_token_expires_at TIMESTAMPTZ,
   submitted_at TIMESTAMPTZ NOT NULL,
+  closed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -206,6 +207,13 @@ CREATE TABLE point_applications (
       (edit_token_hash IS NOT NULL AND edit_token_expires_at IS NOT NULL)
     ),
 
+  CONSTRAINT point_applications_closed_at_check
+    CHECK (
+      (status IN ('approved', 'rejected') AND closed_at IS NOT NULL)
+      OR
+      (status NOT IN ('approved', 'rejected') AND closed_at IS NULL)
+    ),
+
   CONSTRAINT point_applications_advisor_fk
     FOREIGN KEY (advisor_id) REFERENCES advisors (id)
     ON DELETE RESTRICT
@@ -218,6 +226,7 @@ CREATE TABLE point_applications (
 - `current_version_id` 在 `CREATE TABLE` 階段不建立外鍵，由後續 `ALTER TABLE` 加上指向 `application_versions` 的複合外鍵。詳見下一節〈申請與版本的循環外鍵〉。
 - `applicant_email` 寫入前必須移除前後空白並轉為小寫，但不建立唯一索引。
 - 補件 Token Hash 使用 `BYTEA`，與 `users` 的 Token 相同處理方式。
+- `closed_at` 代表申請流程結束時間；只有 `approved` 與 `rejected` 終止狀態可以且必須有值，其他狀態必須為 `NULL`。
 - `requested_total_points`、`approved_total_points` 與參與者點數的加總一致性由 Service 在 Transaction 中保證，資料庫層不建立跨表 `CHECK`。
 - `point_applications` 必須掛上共用 `set_updated_at()` Trigger。
 

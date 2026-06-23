@@ -259,7 +259,7 @@ EXCLUDE USING gist (
 業務寫入規則（Service 層）：
 
 - 申請核准時，系統依每位參與者的 `approved_points` 建立一筆 `award` 點數異動。
-- 申請狀態更新為 `approved` 與建立所有學生點數異動，必須在同一個 PostgreSQL Transaction 中完成。
+- 申請狀態更新為 `approved`、寫入 `point_applications.closed_at` 與建立所有學生點數異動，必須在同一個 PostgreSQL Transaction 中完成。
 - 核准前承辦人調整點數時，流水帳只寫入最終 `approved_points`，不需要額外建立差額紀錄。
 - 核准後若需要更正點數，不可修改或刪除原始流水帳；承辦人必須提出 `student_point_change_requests`，由管理員核准後新增一筆 `adjustment` 或 `reversal`。
 - `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員。
