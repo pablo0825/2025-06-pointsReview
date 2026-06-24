@@ -101,7 +101,9 @@ EXECUTE FUNCTION set_updated_at();
 | 資料用途 | PostgreSQL 型別 |
 | --- | --- |
 | Email | `VARCHAR(320)` |
-| 姓名、職稱與班級 | `VARCHAR(100)` |
+| 姓名 | `VARCHAR(100)` |
+| 學年度 | `VARCHAR(10)` |
+| 年級、班級與職稱代碼 | `SMALLINT` |
 | 學號 | `VARCHAR(50)` |
 | 電話 | `VARCHAR(30)` |
 | 名稱、標題與原始檔名 | `VARCHAR(255)` |
@@ -289,6 +291,8 @@ Partial Unique Index 只能防止符合條件的資料重複。例如 `one_appli
 一般非唯一索引依實際查詢需求建立。第一版至少需要：
 
 - `student_point_transactions (student_number)`：學生點數彙總與查詢。
+- `student_point_transactions (academic_year_snapshot, grade_snapshot, class_number_snapshot)`：公開點數總表依學年度、年級、班級代碼篩選，索引名稱建議使用 `idx_student_point_transactions_year_grade_class_number`。
+- `student_point_transactions (academic_year_snapshot, student_number)`：公開點數總表依學年度與學號搜尋。
 - `point_applications (status, submitted_at)`：承辦人待審核列表。
 - `point_applications (advisor_id, status)`：指導老師查看自己的待簽核申請。
 - Token Hash 欄位：帳號啟用、密碼重設及補件連結查詢。

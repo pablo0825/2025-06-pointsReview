@@ -260,8 +260,10 @@ EXCLUDE USING gist (
 
 - 申請核准時，系統依每位參與者的 `approved_points` 建立一筆 `award` 點數異動。
 - 申請狀態更新為 `approved`、寫入 `point_applications.closed_at` 與建立所有學生點數異動，必須在同一個 PostgreSQL Transaction 中完成。
+- 建立 `award` 時，必須把 `application_participants` 的 `academic_year`、`grade`、`class_number` 寫入流水帳快照欄位。
 - 核准前承辦人調整點數時，流水帳只寫入最終 `approved_points`，不需要額外建立差額紀錄。
 - 核准後若需要更正點數，不可修改或刪除原始流水帳；承辦人必須提出 `student_point_change_requests`，由管理員核准後新增一筆 `adjustment` 或 `reversal`。
+- `adjustment` 與 `reversal` 必須沿用目標原始 `award` 的姓名、學年度、年級與班級快照，避免更正紀錄被歸到學生最新班級。
 - `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員。
 - `point_category` 必須對應該申請的 `application_type`。
 
@@ -306,16 +308,26 @@ WHERE student_number = $1;
 
 ## 公開學生點數總表 `student_points_summary`
 
-提供學生在不登入的情況下，查詢自己或其他學生目前的各類累積點數與總點數。第一版使用 PostgreSQL View 即時計算，資料量增加後可改為 Materialized View。
+提供學生在不登入的情況下，依學年度、年級、班級查詢自己或其他學生在該歸屬下的各類累積點數與總點數。第一版使用 PostgreSQL View 即時計算，資料量增加後可改為 Materialized View。
 
 View 欄位、結構與設計說明請參考 [資料模型 - student_points_summary](data-model.md#公開學生點數總表-student_points_summary)；完整可執行 SQL 請參考 [資料庫 Schema](database-schema.md#student_points_summary-view)。
 
 查詢功能：
 
-- 支援使用學號、姓名及班級搜尋。
-- 支援依班級、學號及總點數排序。
+- 支援依學年度、年級、班級代碼篩選；未指定學年度時，預設查目前學年度。
+- 支援使用學號與姓名搜尋。
+- 支援依學年度、年級、班級代碼、學號及總點數排序。
 - 必須使用分頁，不一次回傳全部學生資料。
 - 公開結果只顯示點數摘要，不顯示申請附件、Email、電話、拒絕原因或審核紀錄。
+- 畢業生或歷史資料必須用歷史學年度查詢，不用學生最新班級推斷。
+
+年級班級語意：
+
+- `student_points_summary` 代表「某學年度、某年級／班級下的點數摘要」，不是「學生最新班級下的所有歷史點數」。
+- `grade = 1..4` 代表一年級至四年級，`grade = 5..6` 代表碩一至碩二；`class_number = 1..5` 代表甲班至戊班。
+- 顯示「三年甲班」時由 API 或前端用 `grade` 與 `class_number` 對照表合成。
+- 「點數歸屬班級」來自流水帳不可變快照；「學生最新班級」若日後需要，應另由 `student_lifetime_points_summary` 或其他學生狀態資料來源提供。
+- 延後畢業學生歸類已討論，第一版暫不新增特殊狀態或額外年級值；目前以申請當下行政歸屬年級班級為準。
 
 ### 公開資料遮罩
 
@@ -333,7 +345,9 @@ View 欄位、結構與設計說明請參考 [資料模型 - student_points_summ
 ```text
 masked_student_name
 masked_student_number
-class_name
+academic_year
+grade
+class_number
 competition_points
 project_participation_points
 certificate_points
@@ -344,4 +358,4 @@ updated_at
 
 即使使用完整學號或姓名搜尋，公開 API 仍不可回傳未遮罩的姓名與學號。
 
-因為班級、學號與姓名由申請人手動填寫，承辦人核准前必須確認資料一致性，避免同一學號出現不同姓名或班級。
+因為學年度、年級、班級、學號與姓名由申請人手動填寫，承辦人核准前必須確認資料一致性，避免同一學號在同一學年度出現不合理的姓名或班級差異。

@@ -83,7 +83,7 @@ erDiagram
 | `user_id` | 關聯 `users.id`，且必須唯一 |
 | `employee_number` | 教師編號，必須唯一 |
 | `name` | 教師姓名 |
-| `title` | 職稱 |
+| `title_code` | 職稱代碼 |
 | `department` | 所屬系所或單位 |
 | `is_director` | 是否為目前主任，預設為 `false` |
 | `is_active` | 是否可被選擇，預設為 `true` |
@@ -91,6 +91,20 @@ erDiagram
 | `updated_at` | 修改時間 |
 
 教師的登入及通知 Email 原則上使用 `users.email`，避免在 `advisors` 重複保存 Email。
+
+職稱代碼：
+
+| `title_code` | 顯示職稱 |
+| --- | --- |
+| `1` | 專任講師 |
+| `2` | 專任助理教授 |
+| `3` | 專任助理教授級專業技術人員 |
+| `4` | 專任副教授 |
+| `5` | 專任副教授級專業技術人員 |
+| `6` | 專任教授 |
+| `7` | 特聘教授 |
+
+`advisors` 只保存穩定代碼，顯示文字由 API 或前端依對照表產生。若未來職稱需要由後台維護或出現大量新增選項，再評估拆出 `advisor_titles` 對照表。
 
 教師離職、停職或暫時不可選擇時，應將 `is_active` 設為 `false`，而不是刪除教師資料，以保留歷史申請關聯。
 
@@ -189,7 +203,9 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | --- | --- |
 | `id` | 主鍵 |
 | `application_id` | 關聯 `point_applications.id`，搭配 `student_number` 必須唯一 |
-| `class_name` | 班級 |
+| `academic_year` | 申請送件當下學生所屬學年度，例如 `114` 或 `114-1` |
+| `grade` | 申請送件當下學生所屬年級代碼，`1` 至 `4` 為一年級至四年級，`5` 至 `6` 為碩一至碩二 |
+| `class_number` | 申請送件當下學生所屬班級代碼，`1` 至 `5` 對應甲班至戊班 |
 | `student_number` | 學號，同一申請內不可重複 |
 | `student_name` | 姓名 |
 | `requested_points` | 申請人為此參與者填寫的申請點數，必須大於 `0` |
@@ -198,7 +214,14 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
 
-`application_id`、`class_name`、`student_number`、`student_name`、`requested_points` 與 `is_applicant` 皆為 `NOT NULL`；`approved_points` 在核准前為 `NULL`。
+`application_id`、`academic_year`、`grade`、`class_number`、`student_number`、`student_name`、`requested_points` 與 `is_applicant` 皆為 `NOT NULL`；`approved_points` 在核准前為 `NULL`。
+
+年級班級語意：
+
+- `application_participants` 保存申請送件當下的學生歸屬，不依未來升級或轉班回寫。
+- `grade` 與 `class_number` 分開保存；顯示「三年甲班」時由顯示層依 `grade = 3` 與 `class_number = 1` 合成。
+- 延後畢業學生歸類已討論，第一版暫不新增特殊狀態或額外年級值；目前以申請當下行政歸屬年級班級為準。
+- 補件若修正年級或班級，`application_participants` 會反映目前最新補件版本；每次送件時的完整歷史仍由 `application_versions.application_snapshot` 保存。
 
 跨資料表加總一致性規則：
 
@@ -798,14 +821,16 @@ signatures/applications/100/version-2/550e8400.png
 
 保存申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。點數查詢方式、核准前後調整流程、累積上限驗證請參考 [點數系統 - 學生點數流水帳](point-system.md#學生點數流水帳-student_point_transactions)。
 
-系統不建立學生主資料庫，因此使用 `student_number` 識別學生；姓名與班級僅保存建立異動時的資料快照。
+系統不建立學生主資料庫，因此使用 `student_number` 識別學生；姓名、學年度、年級與班級皆保存建立異動時的不可變資料快照。
 
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
 | `student_number` | 學號，作為學生點數查詢識別值 |
 | `student_name_snapshot` | 異動建立當下的學生姓名 |
-| `class_name_snapshot` | 異動建立當下的班級 |
+| `academic_year_snapshot` | 異動建立當下的學生所屬學年度 |
+| `grade_snapshot` | 異動建立當下的學生所屬年級代碼 |
+| `class_number_snapshot` | 異動建立當下的班級代碼 |
 | `application_id` | 點數來源申請，關聯 `point_applications.id` |
 | `participant_id` | 點數來源參與者，關聯 `application_participants.id` |
 | `point_category` | 點數類別 |
@@ -840,6 +865,7 @@ signatures/applications/100/version-2/550e8400.png
 
 - `transaction_type` 與 `related_transaction_id`、`reason` 的配對由資料庫多態 `CHECK` 強制：`award` 時兩者必須為 `NULL`；`adjustment`／`reversal` 時兩者必須非 `NULL`。
 - 同一筆參與者只能產生一筆原始 `award`，由 partial unique index `one_award_per_participant` 保證。
+- `award` 的 `*_snapshot` 欄位取自核准當下的 `application_participants`；`adjustment` 與 `reversal` 必須沿用目標原始 `award` 的學年度、年級、班級與姓名快照，避免後續更正被歸到學生最新班級。
 - `point_category` 必須對應該申請的 `application_type`，由 Service 在 Transaction 內驗證。
 - `adjustment` 與 `reversal` 的 `created_by_user_id` 必須為管理員身分，由 Service 驗證（資料庫不加跨表 CHECK）。
 - 流水帳為**不可變稽核紀錄**，沒有 `updated_at`，不掛 Trigger；不可實體刪除，由 application 層保證沒有對應的 DELETE／UPDATE endpoint。
@@ -898,26 +924,31 @@ signatures/applications/100/version-2/550e8400.png
 
 ## 公開學生點數總表 `student_points_summary`
 
-`student_points_summary` 是 PostgreSQL **View**，不是實體資料表。提供學生在不登入的情況下查詢自己或其他學生目前的各類累積點數與總點數，第一版即時從 `student_point_transactions` 計算。查詢功能、排序、分頁與遮罩規則請參考 [點數系統 - 公開學生點數總表](point-system.md#公開學生點數總表-student_points_summary)。
+`student_points_summary` 是 PostgreSQL **View**，不是實體資料表。提供學生在不登入的情況下，依學年度、年級、班級查詢自己或其他學生在該歸屬下的各類累積點數與總點數。第一版即時從 `student_point_transactions` 計算。查詢功能、排序、分頁與遮罩規則請參考 [點數系統 - 公開學生點數總表](point-system.md#公開學生點數總表-student_points_summary)。
 
 View 結構（欄位）：
 
 | 欄位 | 說明 |
 | --- | --- |
+| `academic_year` | 點數歸屬學年度，來自流水帳不可變快照 |
+| `grade` | 點數歸屬年級，來自流水帳不可變快照 |
+| `class_number` | 點數歸屬班級代碼，來自流水帳不可變快照 |
 | `student_number` | 完整學號，僅供後端查詢及產生遮罩資料 |
-| `student_name` | 最新姓名快照（取最後一次點數異動寫入的值） |
-| `class_name` | 最新班級快照 |
+| `student_name` | 該學年度、年級、班級分組內最新姓名快照（取該分組最後一次點數異動寫入的值） |
 | `competition_points` | 競賽類累積點數 |
 | `project_participation_points` | 參與計畫類累積點數 |
 | `certificate_points` | 證照類累積點數 |
 | `external_exhibition_points` | 校外展覽類累積點數 |
 | `total_points` | 所有類別累積總點數 |
-| `updated_at` | 最後一筆點數異動建立時間（資料新鮮度顯示） |
+| `updated_at` | 該學年度、年級、班級與學生分組內最後一筆點數異動建立時間（資料新鮮度顯示） |
 
 設計說明：
 
-- 用 `DISTINCT ON (student_number) ORDER BY created_at DESC` 取最新姓名／班級快照，避免 `MAX(name)` 取字串最大值的錯誤。
+- 用 `DISTINCT ON (academic_year_snapshot, grade_snapshot, class_number_snapshot, student_number) ORDER BY ... created_at DESC` 取同一分組內最新姓名快照，避免 `MAX(name)` 取字串最大值的錯誤。
+- View 依 `academic_year_snapshot`、`grade_snapshot`、`class_number_snapshot`、`student_number` 分組，代表「某學年度、某年級／班級下的點數摘要」。
+- 姓名快照只在同一學年度、年級、班級與學號分組內取最後一筆；不得用學生最新班級覆蓋歷史年度資料。
 - 各類別點數用 `SUM(points) FILTER (WHERE point_category = ...)` + `COALESCE(..., 0)` 處理無紀錄。
 - View 回傳完整 `student_number` 與 `student_name`；**公開 API 必須在回傳前遮罩**。
 - 完整可執行 SQL 請參考 [資料庫 Schema](database-schema.md#student_points_summary-view)。
+- 若日後需要顯示學生跨年度生涯總點數，應另建 `student_lifetime_points_summary` View，並清楚標示其班級欄位為最新快照，不可混用 `student_points_summary` 的年度歸屬語意。
 - 若日後資料量增加導致即時計算成本過高，可改為 Materialized View 並排程 `REFRESH MATERIALIZED VIEW`。

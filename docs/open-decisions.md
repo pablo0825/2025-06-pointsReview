@@ -107,7 +107,7 @@ audit_logs
 
 ### 5. PostgreSQL Schema 詳細設計
 
-邏輯資料模型、共用 Schema 規範與可執行 SQL 已拆分管理。**所有資料表與 `student_points_summary` View 的 PostgreSQL Schema 已完成**，可直接轉換為 Migration。
+邏輯資料模型、共用 Schema 規範與可執行 SQL 已拆分管理。**所有資料表與 `student_points_summary` View 的 PostgreSQL Schema 已完成**，可直接轉換為 Migration；學生點數摘要已納入學年度、年級與班級歸屬快照設計。
 
 目前已確認：
 
@@ -122,6 +122,10 @@ audit_logs
 - 版本快照與結構化資料使用 `JSONB`，IP 位址使用 `INET`。
 - 欄位預設使用 `NOT NULL`；確實可能不存在的資料才允許 `NULL`。
 - 所有具有 `updated_at` 的資料表統一使用 PostgreSQL Trigger 自動更新時間。
+- `advisors.title_code` 使用 `SMALLINT` 固定代碼保存職稱，顯示文字由 API 或前端依對照表產生；若未來職稱需要後台維護，再評估拆出 `advisor_titles` 對照表。
+- `application_participants` 保存申請當下的 `academic_year`、`grade`、`class_number`，`student_point_transactions` 保存對應不可變快照。
+- `student_points_summary` 依學年度、年級、班級與學號分組；若日後需要學生生涯累積總表，另建 `student_lifetime_points_summary`。
+- 延後畢業學生歸類已討論，第一版不新增特殊狀態或額外年級值；目前以申請當下行政歸屬年級班級為準。
 - 所有外鍵統一使用 `ON DELETE RESTRICT ON UPDATE RESTRICT`。
 - 第一版不使用 `ON DELETE CASCADE` 或 `ON DELETE SET NULL`。
 - 正式資料不可實體刪除；使用停用、失效、狀態與點數沖銷保留歷史。

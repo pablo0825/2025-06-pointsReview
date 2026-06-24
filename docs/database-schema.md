@@ -107,12 +107,15 @@ CREATE TABLE advisors (
   user_id BIGINT NOT NULL,
   employee_number VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
-  title VARCHAR(100) NOT NULL,
+  title_code SMALLINT NOT NULL,
   department VARCHAR(100) NOT NULL,
   is_director BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT advisors_title_code_check
+    CHECK (title_code BETWEEN 1 AND 7),
 
   CONSTRAINT advisors_user_id_fk
     FOREIGN KEY (user_id) REFERENCES users (id)
@@ -125,6 +128,7 @@ CREATE TABLE advisors (
 
 - `user_id` 為 `NOT NULL` 且必須唯一，每位指導老師對應一個 `users` 帳號。
 - `employee_number` 必須唯一，避免重複建立同一位教師資料。
+- `title_code` 使用固定代碼：`1` 專任講師、`2` 專任助理教授、`3` 專任助理教授級專業技術人員、`4` 專任副教授、`5` 專任副教授級專業技術人員、`6` 專任教授、`7` 特聘教授；顯示文字由 API 或前端依對照表產生。
 - `is_active` 預設為 `TRUE`，與 `users.is_active` 預設 `FALSE` 不同；指導老師建立後通常立即可被選取，但實際是否出現在申請選單仍須搭配 `users.is_active` 與 `users.activated_at` 條件查詢。
 - 對應的 `users.role` 必須為 `advisor`，由 Service 層在建立及修改時驗證，資料庫不額外建立跨表 `CHECK`。
 - `advisors` 必須掛上共用 `set_updated_at()` Trigger。
@@ -336,7 +340,9 @@ Migration 建立順序：
 CREATE TABLE application_participants (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   application_id BIGINT NOT NULL,
-  class_name VARCHAR(100) NOT NULL,
+  academic_year VARCHAR(10) NOT NULL,
+  grade SMALLINT NOT NULL,
+  class_number SMALLINT NOT NULL,
   student_number VARCHAR(50) NOT NULL,
   student_name VARCHAR(100) NOT NULL,
   requested_points NUMERIC(10, 2) NOT NULL,
@@ -350,6 +356,12 @@ CREATE TABLE application_participants (
 
   CONSTRAINT application_participants_approved_points_check
     CHECK (approved_points IS NULL OR approved_points >= 0),
+
+  CONSTRAINT application_participants_grade_check
+    CHECK (grade BETWEEN 1 AND 6),
+
+  CONSTRAINT application_participants_class_number_check
+    CHECK (class_number BETWEEN 1 AND 5),
 
   CONSTRAINT application_participants_application_fk
     FOREIGN KEY (application_id) REFERENCES point_applications (id)
@@ -367,6 +379,8 @@ CREATE TABLE application_participants (
 欄位與資料規則：
 
 - `requested_points` 必須大於 `0`；`approved_points` 在核准前為 `NULL`，核准時允許為 `0`。
+- `academic_year`、`grade`、`class_number` 保存申請送件當下的學生歸屬；`grade = 1..4` 代表一年級至四年級，`grade = 5..6` 代表碩一至碩二，`class_number = 1..5` 代表甲班至戊班。
+- 顯示名稱由 API 或前端依 `grade` 與 `class_number` 對照表產生，例如 `grade = 3`、`class_number = 1` 顯示為「三年甲班」。
 - 申請人姓名（`is_applicant = TRUE` 的 `student_name`）與 `point_applications.applicant_name` 的一致性、參與者點數加總與申請總點數的一致性，皆由 Service 在 Transaction 內驗證，資料庫層不建立跨表 `CHECK` 或 Trigger。
 - 補件採就地 `UPDATE`／`DELETE`／`INSERT`，歷史依賴 `application_versions.application_snapshot`。
 - `application_participants` 必須掛上共用 `set_updated_at()` Trigger。
@@ -1069,7 +1083,9 @@ CREATE TABLE student_point_transactions (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   student_number VARCHAR(50) NOT NULL,
   student_name_snapshot VARCHAR(100) NOT NULL,
-  class_name_snapshot VARCHAR(100) NOT NULL,
+  academic_year_snapshot VARCHAR(10) NOT NULL,
+  grade_snapshot SMALLINT NOT NULL,
+  class_number_snapshot SMALLINT NOT NULL,
   application_id BIGINT NOT NULL,
   participant_id BIGINT NOT NULL,
   point_category VARCHAR(30) NOT NULL,
@@ -1102,6 +1118,12 @@ CREATE TABLE student_point_transactions (
         AND reason IS NOT NULL)
     ),
 
+  CONSTRAINT student_point_transactions_grade_snapshot_check
+    CHECK (grade_snapshot BETWEEN 1 AND 6),
+
+  CONSTRAINT student_point_transactions_class_number_snapshot_check
+    CHECK (class_number_snapshot BETWEEN 1 AND 5),
+
   CONSTRAINT student_point_transactions_application_fk
     FOREIGN KEY (application_id) REFERENCES point_applications (id)
     ON DELETE RESTRICT
@@ -1128,9 +1150,11 @@ CREATE TABLE student_point_transactions (
 欄位與資料規則：
 
 - `student_point_transactions` 為不可變稽核紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**；不可實體刪除，由 application 層保證沒有 DELETE／UPDATE endpoint。
+- `student_name_snapshot`、`academic_year_snapshot`、`grade_snapshot`、`class_number_snapshot` 保存點數建立當下的不可變快照。
 - `points` 允許正數、負數或 `0`，不建立非負數 `CHECK`，以支援 `adjustment` 與 `reversal`。
 - 複合外鍵 `(participant_id, application_id) → application_participants (id, application_id)` 確保流水帳的 participant 與 application 屬於同一筆申請；複用 `application_participants.UNIQUE (id, application_id)`。
 - `related_transaction_id` 為自我參照外鍵，僅在 `adjustment` 與 `reversal` 時非 `NULL`，指向被調整的原始 `award` 紀錄。
+- `award` 的快照欄位取自核准當下的 `application_participants`；`adjustment` 與 `reversal` 沿用目標原始 `award` 的快照欄位，讓更正點數歸回原始年度與班級。
 - `point_category` 必須對應該申請的 `application_type`，由 Service 在 Transaction 內驗證。
 - `adjustment` 與 `reversal` 的 `created_by_user_id` 必須為管理員，由 Service 驗證。
 
@@ -1142,6 +1166,16 @@ ON student_point_transactions (student_number);
 
 CREATE INDEX idx_student_point_transactions_student_category
 ON student_point_transactions (student_number, point_category);
+
+CREATE INDEX idx_student_point_transactions_year_grade_class_number
+ON student_point_transactions (
+  academic_year_snapshot,
+  grade_snapshot,
+  class_number_snapshot
+);
+
+CREATE INDEX idx_student_point_transactions_year_student
+ON student_point_transactions (academic_year_snapshot, student_number);
 
 CREATE INDEX idx_student_point_transactions_application_id
 ON student_point_transactions (application_id);
@@ -1157,8 +1191,10 @@ WHERE transaction_type = 'award';
 
 各索引用途：
 
-- `idx_student_point_transactions_student_number`：學生點數查詢與彙總。
-- `idx_student_point_transactions_student_category`：`student_points_summary` View 按類別加總時加速。
+- `idx_student_point_transactions_student_number`：學生跨年度點數查詢與彙總。
+- `idx_student_point_transactions_student_category`：學生跨年度依類別加總時加速。
+- `idx_student_point_transactions_year_grade_class_number`：公開總表依學年度、年級、班級代碼篩選。
+- `idx_student_point_transactions_year_student`：公開總表依學年度與學號搜尋。
 - `idx_student_point_transactions_application_id`：列出某申請產生的所有點數紀錄。
 - `idx_student_point_transactions_related_transaction_id`：查某筆原始 `award` 後續被哪些 `adjustment`／`reversal` 調整過。
 - `one_award_per_participant`：保證每位參與者最多只能有一筆 `award` 紀錄。
@@ -1167,7 +1203,7 @@ WHERE transaction_type = 'award';
 
 1. 確認 `point_applications`、`application_participants`（含 `UNIQUE (id, application_id)`）與 `users` 已建立。
 2. 建立 `student_point_transactions`。
-3. 建立五個索引。
+3. 建立七個索引。
 
 ## `student_point_change_requests`
 
@@ -1285,22 +1321,36 @@ ON student_point_change_requests (requested_by_user_id);
 
 ## `student_points_summary` View
 
-從 `student_point_transactions` 即時加總每位學生各類別累積點數。第一版使用 PostgreSQL View，不維護實體 Materialized View。
+從 `student_point_transactions` 即時加總每位學生在某學年度、年級、班級下的各類別累積點數。第一版使用 PostgreSQL View，不維護實體 Materialized View。
 
 ```sql
 CREATE VIEW student_points_summary AS
 WITH latest_snapshot AS (
-  SELECT DISTINCT ON (student_number)
+  SELECT DISTINCT ON (
+    academic_year_snapshot,
+    grade_snapshot,
+    class_number_snapshot,
+    student_number
+  )
+    academic_year_snapshot AS academic_year,
+    grade_snapshot AS grade,
+    class_number_snapshot AS class_number,
     student_number,
-    student_name_snapshot AS student_name,
-    class_name_snapshot AS class_name
+    student_name_snapshot AS student_name
   FROM student_point_transactions
-  ORDER BY student_number, created_at DESC
+  ORDER BY
+    academic_year_snapshot,
+    grade_snapshot,
+    class_number_snapshot,
+    student_number,
+    created_at DESC
 )
 SELECT
+  t.academic_year_snapshot AS academic_year,
+  t.grade_snapshot AS grade,
+  t.class_number_snapshot AS class_number,
   t.student_number,
   ls.student_name,
-  ls.class_name,
   COALESCE(SUM(t.points) FILTER (
     WHERE t.point_category = 'competition'
   ), 0) AS competition_points,
@@ -1316,16 +1366,27 @@ SELECT
   COALESCE(SUM(t.points), 0) AS total_points,
   MAX(t.created_at) AS updated_at
 FROM student_point_transactions t
-JOIN latest_snapshot ls USING (student_number)
-GROUP BY t.student_number, ls.student_name, ls.class_name;
+JOIN latest_snapshot ls
+  ON ls.academic_year = t.academic_year_snapshot
+  AND ls.grade = t.grade_snapshot
+  AND ls.class_number = t.class_number_snapshot
+  AND ls.student_number = t.student_number
+GROUP BY
+  t.academic_year_snapshot,
+  t.grade_snapshot,
+  t.class_number_snapshot,
+  t.student_number,
+  ls.student_name;
 ```
 
 設計說明：
 
-- 透過 `DISTINCT ON (student_number) ORDER BY created_at DESC` 取得每位學生**最後一次**點數異動寫入時的姓名與班級快照，避免 `MAX(name)` 取到字串最大值的錯誤行為。
+- View 依 `academic_year_snapshot`、`grade_snapshot`、`class_number_snapshot`、`student_number` 分組，代表「某學年度、某年級／班級下的點數摘要」。
+- 透過 `DISTINCT ON (...) ORDER BY ... created_at DESC` 取得同一分組內最後一次點數異動寫入時的姓名快照，避免 `MAX(name)` 取到字串最大值的錯誤行為。
 - 各類別總點數使用 `SUM(points) FILTER (WHERE point_category = ...)`，並以 `COALESCE(..., 0)` 處理無紀錄情形。
-- `updated_at` 為該學生「最後一筆點數異動建立時間」，作為資料新鮮度顯示。
+- `updated_at` 為該學年度、年級、班級與學生分組內「最後一筆點數異動建立時間」，作為資料新鮮度顯示。
 - View 回傳完整 `student_number` 與 `student_name`；公開 API 必須在回傳前以遮罩格式輸出（見 [點數系統](point-system.md#公開資料遮罩)）。
+- 若日後需要學生生涯累積總表，應另建 `student_lifetime_points_summary` View；該 View 才適合顯示 latest grade／latest class。
 - 若日後資料量增加導致即時計算成本過高，可改為 Materialized View 並排程 `REFRESH MATERIALIZED VIEW`。
 
 建立順序：
