@@ -173,6 +173,7 @@ CREATE TABLE point_applications (
   current_version_id BIGINT,
   edit_token_hash BYTEA,
   edit_token_expires_at TIMESTAMPTZ,
+  advisor_confirmation_expires_at TIMESTAMPTZ,
   submitted_at TIMESTAMPTZ NOT NULL,
   closed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -218,6 +219,12 @@ CREATE TABLE point_applications (
       (status NOT IN ('approved', 'rejected') AND closed_at IS NULL)
     ),
 
+  CONSTRAINT point_applications_advisor_confirmation_expires_at_check
+    CHECK (
+      status <> 'pending_advisor'
+      OR advisor_confirmation_expires_at IS NOT NULL
+    ),
+
   CONSTRAINT point_applications_advisor_fk
     FOREIGN KEY (advisor_id) REFERENCES advisors (id)
     ON DELETE RESTRICT
@@ -230,6 +237,7 @@ CREATE TABLE point_applications (
 - `current_version_id` 在 `CREATE TABLE` 階段不建立外鍵，由後續 `ALTER TABLE` 加上指向 `application_versions` 的複合外鍵。詳見下一節〈申請與版本的循環外鍵〉。
 - `applicant_email` 寫入前必須移除前後空白並轉為小寫，但不建立唯一索引。
 - 補件 Token Hash 使用 `BYTEA`，與 `users` 的 Token 相同處理方式。
+- `advisor_confirmation_expires_at` 是老師簽核最後期限；`pending_advisor` 狀態必填，離開 `pending_advisor` 後保留原期限，不用清空。
 - `closed_at` 代表申請流程結束時間；只有 `approved` 與 `rejected` 終止狀態可以且必須有值，其他狀態必須為 `NULL`。
 - `requested_total_points`、`approved_total_points` 與參與者點數的加總一致性由 Service 在 Transaction 中保證，資料庫層不建立跨表 `CHECK`。
 - `point_applications` 必須掛上共用 `set_updated_at()` Trigger。
@@ -249,9 +257,87 @@ ON point_applications (status, submitted_at);
 
 CREATE INDEX idx_point_applications_advisor_status
 ON point_applications (advisor_id, status);
+
+CREATE INDEX idx_point_applications_advisor_confirmation_expiry
+ON point_applications (advisor_confirmation_expires_at)
+WHERE status = 'pending_advisor';
 ```
 
-`point_applications_edit_token_hash_unique` 同時用於加速補件連結驗證查詢，並保證一個 Token 只能對應一個申請。`idx_point_applications_status_submitted_at` 與 `idx_point_applications_advisor_status` 對應承辦人待審列表與指導老師待簽核列表的常用查詢。
+`point_applications_edit_token_hash_unique` 同時用於加速補件連結驗證查詢，並保證一個 Token 只能對應一個申請。`idx_point_applications_status_submitted_at` 與 `idx_point_applications_advisor_status` 對應承辦人待審列表與指導老師待簽核列表的常用查詢。`idx_point_applications_advisor_confirmation_expiry` 對應排程查詢逾期未簽核申請。
+
+## `email_tasks`
+
+```sql
+CREATE TABLE email_tasks (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_key VARCHAR(160) NOT NULL,
+  application_id BIGINT,
+  recipient_email VARCHAR(320) NOT NULL,
+  template_name VARCHAR(80) NOT NULL,
+  payload JSONB NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  sent_at TIMESTAMPTZ,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT email_tasks_status_check
+    CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'cancelled')),
+
+  CONSTRAINT email_tasks_recipient_email_normalized_check
+    CHECK (recipient_email = LOWER(BTRIM(recipient_email))),
+
+  CONSTRAINT email_tasks_attempt_count_check
+    CHECK (attempt_count >= 0),
+
+  CONSTRAINT email_tasks_max_attempts_check
+    CHECK (max_attempts > 0),
+
+  CONSTRAINT email_tasks_attempt_count_max_check
+    CHECK (attempt_count <= max_attempts),
+
+  CONSTRAINT email_tasks_sent_at_check
+    CHECK (
+      (status = 'sent' AND sent_at IS NOT NULL)
+      OR
+      (status <> 'sent')
+    ),
+
+  CONSTRAINT email_tasks_application_fk
+    FOREIGN KEY (application_id) REFERENCES point_applications (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT email_tasks_event_key_unique
+    UNIQUE (event_key)
+);
+```
+
+欄位與資料規則：
+
+- `event_key` 由 Service 以穩定格式產生，用來避免重複建立同一封通知。
+- `application_id` 可為 `NULL`，支援帳號啟用、密碼重設等非申請類通知。
+- `payload` 保存模板渲染資料，不保存寄送結果。
+- `failed` 代表已達 `max_attempts` 或被判定不可重試。
+- `cancelled` 代表事件已不需要寄送，例如申請狀態已改變。
+- 實際重試間隔與退避策略由 Email worker 控制。
+- `email_tasks` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE INDEX idx_email_tasks_pending_scheduled
+ON email_tasks (scheduled_at)
+WHERE status = 'pending';
+
+CREATE INDEX idx_email_tasks_application_id
+ON email_tasks (application_id)
+WHERE application_id IS NOT NULL;
+```
+
+`idx_email_tasks_pending_scheduled` 對應 Email worker 查詢待寄送任務：`status = 'pending' AND scheduled_at <= NOW()`。`idx_email_tasks_application_id` 用於查詢特定申請的寄信紀錄。
 
 ## `application_versions`
 
@@ -465,6 +551,14 @@ EXCLUDE USING gist (
 );
 ```
 
+備註：
+
+- 這個 `EXCLUDE` constraint 用來保證相同 `competition_level` 與 `award` 的規則期間不能重疊。
+- `competition_level WITH =` 與 `award WITH =` 表示只有在競賽等級與獎項都相同時，才需要檢查時間是否衝突。
+- `daterange(effective_from, effective_to, '[)') WITH &&` 表示用半開日期區間檢查重疊；`[)` 代表包含 `effective_from`、不包含 `effective_to`。
+- 因為使用半開區間，前一筆規則的 `effective_to` 可以等於下一筆規則的 `effective_from`，兩者不算重疊。
+- 這個 constraint 需要 `btree_gist`，因為 GiST exclusion constraint 同時用到一般欄位的等值比較與日期區間重疊比較。
+
 ### `project_point_rules`
 
 ```sql
@@ -550,8 +644,8 @@ CREATE TABLE exhibition_point_rules (
 
   CONSTRAINT exhibition_point_rules_exhibition_type_check
     CHECK (exhibition_type IN (
-      'creative_work',
-      'graduation_project_exhibition'
+      'fan_work',
+      'project_work'
     )),
 
   CONSTRAINT exhibition_point_rules_minimum_points_check
@@ -699,26 +793,11 @@ CREATE TABLE project_participation_details (
   project_point_rule_id BIGINT NOT NULL,
   project_name VARCHAR(255) NOT NULL,
   principal_investigator VARCHAR(100) NOT NULL,
-  salary_start_month DATE NOT NULL,
-  salary_end_month DATE NOT NULL,
-  monthly_salary BIGINT NOT NULL,
   work_description TEXT NOT NULL,
   total_salary BIGINT NOT NULL,
   calculated_points NUMERIC(10, 2) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  CONSTRAINT project_participation_details_salary_start_month_first_day_check
-    CHECK (EXTRACT(DAY FROM salary_start_month) = 1),
-
-  CONSTRAINT project_participation_details_salary_end_month_first_day_check
-    CHECK (EXTRACT(DAY FROM salary_end_month) = 1),
-
-  CONSTRAINT project_participation_details_salary_month_range_check
-    CHECK (salary_end_month >= salary_start_month),
-
-  CONSTRAINT project_participation_details_monthly_salary_check
-    CHECK (monthly_salary > 0),
 
   CONSTRAINT project_participation_details_total_salary_check
     CHECK (total_salary > 0),
@@ -742,8 +821,37 @@ CREATE TABLE project_participation_details (
 業務規則由 Service 在 Transaction 內保證，包括：
 
 - 一張參與計畫申請只允許一位 `application_participants`，且必須是申請人。
-- `total_salary` 由 `monthly_salary * 月份數`（含 start 與 end）計算。
+- `total_salary` 由 `project_participation_salary_items.salary_amount` 加總計算。
 - `calculated_points` 由 `FLOOR(total_salary / salary_unit) * points_per_unit` 計算，並以申請使用的 `project_point_rules` 為準。
+
+### `project_participation_salary_items`
+
+```sql
+CREATE TABLE project_participation_salary_items (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  project_participation_detail_id BIGINT NOT NULL,
+  salary_month DATE NOT NULL,
+  salary_amount BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT project_participation_salary_items_month_first_day_check
+    CHECK (EXTRACT(DAY FROM salary_month) = 1),
+
+  CONSTRAINT project_participation_salary_items_salary_amount_check
+    CHECK (salary_amount > 0),
+
+  CONSTRAINT project_participation_salary_items_detail_fk
+    FOREIGN KEY (project_participation_detail_id)
+    REFERENCES project_participation_details (id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+  CONSTRAINT project_participation_salary_items_unique_month
+    UNIQUE (project_participation_detail_id, salary_month)
+);
+```
+
+`salary_month` 代表領薪年月，固定以該月 1 日保存；不是實際發薪日或薪資結束日。同一筆參與計畫申請必須至少有一筆薪資月份明細，並由 Service 在 Transaction 內保證。
 
 ### `certificate_application_details`
 
@@ -797,8 +905,8 @@ CREATE TABLE external_exhibition_details (
 
   CONSTRAINT external_exhibition_details_exhibition_type_check
     CHECK (exhibition_type IN (
-      'creative_work',
-      'graduation_project_exhibition'
+      'fan_work',
+      'project_work'
     )),
 
   CONSTRAINT external_exhibition_details_exhibition_name_check

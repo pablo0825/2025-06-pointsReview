@@ -100,17 +100,23 @@ Email 寄送失敗重試與尚未處理提醒是不同流程：
 - 寄送失敗重試：Email 服務發生錯誤，由 Email Queue 自動重試。
 - 尚未處理提醒：Email 已成功寄出，但老師或申請人尚未完成操作，由排程寄送提醒。
 
+所有系統通知由 `email_tasks` 建立寄信任務，背景 worker 依 `scheduled_at` 寄送。寄送失敗重試只更新 `email_tasks` 狀態與嘗試次數，不等同於重新計算老師簽核或申請人補件期限。
+
 ### 指導老師簽核提醒
 
-系統自動寄送三次指導老師簽核提醒。最終期限內仍未簽核時：
+申請送出並進入 `pending_advisor` 時，系統寫入 `point_applications.advisor_confirmation_expires_at` 作為指導老師簽核最後期限，並立即寄送第一次簽核通知。簽核提醒必須在期限前寄送；`advisor_confirmation_expires_at` 不是提醒時間。
+
+老師簽核通知與提醒的 `email_tasks.event_key` 建議使用穩定格式，例如 `advisor-sign-request:application-{id}:version-{version}`、`advisor-sign-reminder-1:application-{id}:version-{version}` 至 `advisor-sign-reminder-3:application-{id}:version-{version}`。
+
+系統自動寄送三次指導老師簽核提醒。超過 `advisor_confirmation_expires_at` 仍未簽核時，不再自動寄送簽核連結，系統改為作廢申請：
 
 - 將申請狀態設為 `rejected`。
 - 寫入 `point_applications.closed_at`。
 - 新增 `advisor_confirmation_expired` 審核操作紀錄。
 - `actor_type` 設為 `system`。
-- 寄送申請作廢通知給申請人。
+- 寄送申請作廢通知給申請人，必要時副本通知指導老師或承辦人。
 
-提醒排程的實際間隔可由系統設定管理，但總提醒次數固定為三次。
+提醒排程的實際間隔可由系統設定管理，但總提醒次數固定為三次。若需要延長簽核期限，必須由承辦人或管理員明確操作；第一版可先不實作期限延長。
 
 ### 申請人補件提醒
 

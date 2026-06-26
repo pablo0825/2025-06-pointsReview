@@ -12,6 +12,14 @@
 - 點數規則採不可覆蓋的版本化設計，以首次送件時間決定適用規則。
 - 申請、簽名、審核與學生點數異動皆保留歷史紀錄。
 
+## Email Worker
+
+Email worker 負責處理 `email_tasks` 中的寄信任務。Worker 定期查詢 `status = 'pending'` 且 `scheduled_at <= NOW()` 的任務，寄送前先將任務標記為 `processing`。
+
+寄送成功時，worker 將任務更新為 `sent` 並寫入 `sent_at`。寄送失敗時，worker 增加 `attempt_count`、寫入 `last_error`，並依 `attempt_count` 與 `max_attempts` 決定將任務重新排程為 `pending`，或標記為 `failed`。重試間隔、退避策略與不可重試錯誤類型由 worker 設定控制。
+
+寄信任務只處理通知投遞，不決定申請是否逾期或是否作廢。老師簽核期限與補件期限仍由申請流程排程依 `point_applications` 的狀態與期限欄位判斷。
+
 ## 相關文件
 
 - 產品行為與狀態流程：[產品流程](product-workflows.md)

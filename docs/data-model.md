@@ -164,6 +164,7 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | `current_version_id` | 目前申請版本，關聯 `application_versions.id`；首次建立 Transaction 中暫時為 `NULL` |
 | `edit_token_hash` | 補件連結 Token 的雜湊值，可為 `NULL` |
 | `edit_token_expires_at` | 補件連結到期時間，可為 `NULL` |
+| `advisor_confirmation_expires_at` | 指導老師簽核最後期限 |
 | `submitted_at` | 首次送件時間 |
 | `closed_at` | 申請流程結束時間，未進入終止狀態前為 `NULL` |
 | `created_at` | 建立時間 |
@@ -174,6 +175,8 @@ WHERE is_director = TRUE AND is_active = TRUE;
 `closed_at` 代表申請流程結束時間。當 `status` 為終止狀態 `approved` 或 `rejected` 時，`closed_at` 必須有值；當 `status` 仍為 `pending_advisor`、`under_review` 或 `needs_revision` 時，`closed_at` 必須為 `NULL`。狀態與 `closed_at` 的配對由 PostgreSQL `CHECK` constraint 保證。
 
 `edit_token_hash` 與 `edit_token_expires_at` 必須同時為 `NULL` 或同時非 `NULL`，由 PostgreSQL `CHECK` constraint 保證。補件 Token 雜湊使用 `BYTEA`，與 `users` 的啟用與密碼重設 Token 相同處理方式，並建立非 `NULL` 值的 Partial Unique Index 防止 Token 撞號並加速查詢。
+
+`advisor_confirmation_expires_at` 是老師簽核的最後期限，不是提醒寄送時間。申請進入 `pending_advisor` 時必須寫入；老師簽名或拒絕前，Service 必須驗證尚未逾期。超過期限仍未簽核時，系統將申請設為 `rejected` 並寫入 `advisor_confirmation_expired` 審核操作紀錄。申請離開 `pending_advisor` 後不清空此欄位，保留原始簽核期限作為稽核資訊。
 
 `applicant_email` 在寫入前必須移除前後空白並轉為小寫，但**不建立唯一索引**，因為同一位申請人可以重複建立多筆申請。
 
@@ -194,6 +197,58 @@ WHERE is_director = TRUE AND is_active = TRUE;
 - `external_exhibition`：參加校外展覽點數申請
 
 `status` 可使用的值與狀態轉換規則請參考 [產品流程](product-workflows.md#申請狀態)。
+
+## Email 寄送任務 `email_tasks`
+
+保存系統待寄送、寄送中與已完成的 Email 任務。此表是通用寄信佇列，不只用於指導老師簽核，也可用於帳號啟用、密碼重設、補件通知、核准通知、拒絕通知與逾期作廢通知。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `event_key` | 唯一事件識別值，用來避免重複建立同一封通知 |
+| `application_id` | 關聯 `point_applications.id`，可為 `NULL` |
+| `recipient_email` | 收件人 Email，必須為正規化後（trim + lowercase）格式 |
+| `template_name` | Email 模板名稱 |
+| `payload` | 模板渲染所需資料，使用 `JSONB` |
+| `status` | 任務狀態 |
+| `scheduled_at` | 預計寄送時間 |
+| `sent_at` | 實際成功寄送時間，未成功前為 `NULL` |
+| `attempt_count` | 已嘗試寄送次數 |
+| `max_attempts` | 最大嘗試寄送次數 |
+| `last_error` | 最近一次寄送失敗錯誤，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+`application_id` 可為 `NULL`，因為帳號啟用、密碼重設等通知不一定關聯到點數申請。與申請有關的通知則應寫入 `application_id`，方便查詢該申請的通知紀錄。
+
+`event_key` 必須由 Service 以穩定格式產生，避免背景排程重複建立相同通知。例如：
+
+```text
+advisor-sign-request:application-100:version-2
+advisor-sign-reminder-1:application-100:version-2
+advisor-sign-reminder-2:application-100:version-2
+advisor-sign-reminder-3:application-100:version-2
+advisor-sign-expired:application-100:version-2
+```
+
+`status` 允許值：
+
+| 狀態 | 說明 |
+| --- | --- |
+| `pending` | 等待背景 worker 寄送 |
+| `processing` | 背景 worker 正在寄送 |
+| `sent` | 已成功寄出 |
+| `failed` | 已達最大嘗試次數或被判定不可重試 |
+| `cancelled` | 事件已不需要寄送 |
+
+資料規則：
+
+- `recipient_email` 寫入前必須移除前後空白並轉為小寫。
+- `sent` 狀態必須有 `sent_at`。
+- `attempt_count` 必須大於或等於 `0`，且不得大於 `max_attempts`。
+- `max_attempts` 必須大於 `0`。
+- 實際重試間隔、退避策略與哪些錯誤可重試由 Email worker 控制，不由資料庫 constraint 決定。
+- `email_tasks` 只負責寄信任務與重試紀錄；申請是否逾期、老師是否已簽名仍由申請流程、`advisor_confirmation_expires_at` 與 `advisor_signatures` 判斷。
 
 ## 申請參與者 `application_participants`
 
@@ -331,9 +386,6 @@ UNIQUE (id, application_id);
 | `project_point_rule_id` | 送件時適用的薪資換點規則，關聯 `project_point_rules.id` |
 | `project_name` | 計畫名稱 |
 | `principal_investigator` | 計畫主持人 |
-| `salary_start_month` | 領薪開始年月 |
-| `salary_end_month` | 領薪結束年月 |
-| `monthly_salary` | 薪資金額 |
 | `work_description` | 工作概述 |
 | `total_salary` | 領薪總金額，建議由系統計算 |
 | `calculated_points` | 依規則計算出的參考點數 |
@@ -344,11 +396,29 @@ UNIQUE (id, application_id);
 
 - 一張申請只允許一位參與者，且該參與者必須是申請人，由 Service 在 Transaction 內驗證。
 - 一張申請只能包含一個計畫；不同計畫必須分開申請。
-- `salary_start_month` 與 `salary_end_month` 固定保存該月份第一天（依 [Schema 設計規範](schema-conventions.md#時間與日期)），並由資料庫 CHECK 強制 `EXTRACT(DAY FROM ...) = 1`。
-- `salary_end_month` 必須大於或等於 `salary_start_month`。
-- `monthly_salary` 為新台幣元整數（`BIGINT`），必須大於 `0`。
-- `total_salary` 與 `calculated_points` 原則上由系統依規則計算，不由申請人手動輸入。
+- 每月薪資由 `project_participation_salary_items` 保存，允許不同月份有不同薪資金額。
+- `total_salary` 與 `calculated_points` 由系統依薪資明細與規則計算，不由申請人手動輸入。
 - 不同計畫的薪資不可合併後再計算點數；各計畫分別建立申請，核准後由學生點數流水帳依學號加總。
+
+## 參與計畫薪資月份明細 `project_participation_salary_items`
+
+保存參與計畫申請的逐月薪資明細，與 `project_participation_details` 為多對一關係。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `project_participation_detail_id` | 關聯 `project_participation_details.id` |
+| `salary_month` | 領薪年月，固定保存該月份第一天 |
+| `salary_amount` | 該月份薪資金額 |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+資料規則：
+
+- `salary_month` 固定保存該月份第一天（依 [Schema 設計規範](schema-conventions.md#時間與日期)），並由資料庫 CHECK 強制 `EXTRACT(DAY FROM ...) = 1`。
+- `salary_amount` 為新台幣元整數（`BIGINT`），必須大於 `0`。
+- 同一筆參與計畫申請中，同一 `salary_month` 不可重複。
+- Service 在 Transaction 內加總所有 `salary_amount`，寫入 `project_participation_details.total_salary`，再依 `project_point_rules` 計算 `calculated_points`。
 
 ## 證照申請資料 `certificate_application_details`
 
@@ -396,8 +466,8 @@ UNIQUE (id, application_id);
 
 展覽類型預計選項：
 
-- `creative_work`：創作作品
-- `graduation_project_exhibition`：畢業專題展覽
+- `fan_work`：同人作品，每人可申請 `0.5` 至 `1` 點
+- `project_work`：專題作品，每人可申請 `1` 至 `2` 點
 
 展覽名稱預計選項：
 
@@ -764,6 +834,7 @@ signatures/applications/100/version-2/550e8400.png
 資料規則：
 
 - 整張表共用同一種規則（不細分子類別），同一時間最多只有一條有效規則。
+- `rounding_method = 'floor'` 表示只計算完整的薪資單位，不足一個 `salary_unit` 的部分不計點。
 - 重疊期間由 daterange Exclusion Constraint 防止。
 - 已被申請使用的規則不可修改或刪除。
 - 必須掛上共用 `set_updated_at()` Trigger。
@@ -807,8 +878,8 @@ signatures/applications/100/version-2/550e8400.png
 
 `exhibition_type` 允許值（CHECK 限制）：
 
-- `creative_work`
-- `graduation_project_exhibition`
+- `fan_work`：同人作品
+- `project_work`：專題作品
 
 資料規則：
 

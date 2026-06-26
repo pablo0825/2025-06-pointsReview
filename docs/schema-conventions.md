@@ -213,14 +213,14 @@ Service 負責驗證：
 ```sql
 CHECK (requested_points > 0)
 CHECK (approved_points IS NULL OR approved_points >= 0)
-CHECK (salary_amount >= 0)
+CHECK (salary_amount > 0)
 CHECK (minimum_points >= 0)
 CHECK (maximum_points >= minimum_points)
 CHECK (end_date >= start_date)
 CHECK (effective_to IS NULL OR effective_to > effective_from)
 ```
 
-`application_participants.requested_points` 必須大於 `0`（申請人不會替分到 `0` 點的參與者填寫名單）；`approved_points` 在核准前為 `NULL`，核准時允許為 `0`，因此使用 `IS NULL OR approved_points >= 0`。規則表的 `minimum_points`、`maximum_points` 與薪資 `salary_amount` 屬於不同情境，仍可為 `0`。
+`application_participants.requested_points` 必須大於 `0`（申請人不會替分到 `0` 點的參與者填寫名單）；`approved_points` 在核准前為 `NULL`，核准時允許為 `0`，因此使用 `IS NULL OR approved_points >= 0`。薪資月份明細的 `salary_amount` 必須大於 `0`；規則表的 `minimum_points`、`maximum_points` 屬於規則下限與上限，仍可為 `0`。
 
 所有具有 `*_other` 欄位的選項，必須建立條件式 `CHECK`。例如：
 

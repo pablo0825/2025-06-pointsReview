@@ -87,7 +87,7 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 
 學生最終可透過點數流水帳查得參與計畫類別合計 `3` 點，但 A、B 計畫在申請與計算時保持獨立。
 
-送件時，API Service 層查詢有效的 `project_point_rules`，自動計算 `total_salary`、`calculated_points` 與申請點數，並將使用的規則保存於 `project_point_rule_id`。
+送件時，前端以陣列送出逐月薪資明細，例如每筆包含 `salary_month` 與 `salary_amount`。API Service 層查詢有效的 `project_point_rules`，加總薪資明細自動計算 `total_salary`、`calculated_points` 與申請點數，並將使用的規則保存於 `project_point_rule_id`。
 
 規則調整時建立新的規則紀錄，不修改已被申請使用的舊規則。
 
@@ -114,8 +114,8 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 
 | 展覽類型 | 每人最低點數 | 每人最高點數 |
 | --- | ---: | ---: |
-| `creative_work` | 0.5 | 1 |
-| `graduation_project_exhibition` | 1 | 2 |
+| `fan_work`（同人作品） | 0.5 | 1 |
+| `project_work`（專題作品） | 1 | 2 |
 
 資料規則：
 
@@ -221,8 +221,8 @@ EXCLUDE USING gist (
 
 | 展覽類型 | 最低點數 | 最高點數 | `effective_from` | `effective_to` |
 | --- | ---: | ---: | --- | --- |
-| `creative_work` | 0.5 | 1 | 2025-08-01 | 2026-08-01 |
-| `creative_work` | 1 | 1.5 | 2026-08-01 | `NULL` |
+| `fan_work` | 0.5 | 1 | 2025-08-01 | 2026-08-01 |
+| `fan_work` | 1 | 1.5 | 2026-08-01 | `NULL` |
 
 ## 學生點數異動申請 `student_point_change_requests`
 
