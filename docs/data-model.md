@@ -508,10 +508,11 @@ UNIQUE (id, application_id);
 | `storage_key` | 私有檔案儲存識別值，使用 `TEXT` |
 | `mime_type` | 檔案格式，使用 `VARCHAR(100)` |
 | `file_size` | 檔案大小（位元組），使用 `BIGINT` |
-| `uploaded_at` | 上傳時間（業務語意欄位） |
-| `created_at` | 建立時間（資料列建立時間，與 `uploaded_at` 同步寫入） |
+| `created_at` | 建立時間，代表附件被納入該申請版本的時間 |
 
 `application_attachments` 屬於不可變紀錄，**沒有 `updated_at` 欄位，不掛 `set_updated_at()` Trigger**。
+
+第一版附件與申請同時送出，不另外保存 `uploaded_at`；`created_at` 即代表附件紀錄建立並被納入該版本的時間。
 
 附件實體檔案放在私有儲存空間，資料庫只保存 `storage_key`。檔案必須經過登入及權限驗證後才能下載。
 

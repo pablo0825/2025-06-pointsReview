@@ -1023,7 +1023,6 @@ CREATE TABLE application_attachments (
   storage_key TEXT NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
   file_size BIGINT NOT NULL,
-  uploaded_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT application_attachments_attachment_type_check
