@@ -78,12 +78,13 @@ erDiagram
 
 ## 使用者 Session `user_sessions`
 
-保存 server-side session 狀態。瀏覽器 cookie 只保存原始 session token，資料庫只保存 SHA-256 token hash，讓系統可以集中撤銷登入狀態。
+保存 server-side session 狀態。瀏覽器 cookie 只保存原始 session token，資料庫只保存 SHA-256 token hash，讓系統可以集中撤銷登入狀態。CSRF token 綁定同一筆 session，資料庫只保存 CSRF token hash。
 
 | 欄位 | 說明 |
 | --- | --- |
 | `id` | 主鍵 |
 | `session_token_hash` | Session token 的 SHA-256 雜湊值，必須唯一 |
+| `csrf_token_hash` | CSRF token 的 SHA-256 雜湊值 |
 | `user_id` | 關聯 `users.id` |
 | `last_seen_at` | 最近一次成功使用此 session 的時間 |
 | `expires_at` | Session 絕對到期時間 |
@@ -97,6 +98,7 @@ erDiagram
 資料規則：
 
 - `session_token_hash` 使用 `BYTEA`，不保存原始 session token。
+- `csrf_token_hash` 使用 `BYTEA`，不保存原始 CSRF token；原始 token 僅透過 `/auth/csrf-token` 回傳給已登入前端使用。
 - `expires_at` 必須晚於 `created_at`。
 - `revoked_at` 與 `revoked_reason` 必須同時存在或同時為 `NULL`。
 - Authentication Middleware 每次驗證 session 時，必須確認 session 未過期、未撤銷，且 `users.is_active = TRUE`、`users.activated_at IS NOT NULL`。

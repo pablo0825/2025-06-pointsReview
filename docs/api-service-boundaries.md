@@ -71,6 +71,7 @@ Controller 不直接組 SQL，不直接處理 Transaction。Repository 不讀取
 | `POST` | `/auth/login` | 使用 Email 與密碼登入 | `AuthService.login` | 否 |
 | `POST` | `/auth/logout` | 登出目前 session/token | `AuthService.logout` | 否 |
 | `GET` | `/auth/me` | 取得目前登入使用者 | `AuthService.getCurrentUser` | 否 |
+| `GET` | `/auth/csrf-token` | 取得目前 session 綁定的 CSRF token | `AuthService.getCsrfToken` | 否 |
 | `POST` | `/auth/activation/:token` | 首次啟用帳號並設定密碼 | `AccountActivationService.activate` | 是 |
 | `POST` | `/auth/password-reset/request` | 要求寄送密碼重設信 | `PasswordResetService.requestReset` | 是 |
 | `POST` | `/auth/password-reset/:token` | 使用 token 重設密碼 | `PasswordResetService.resetPassword` | 是 |

@@ -108,6 +108,7 @@ Token Hash Partial Unique Index 同時用於加速連結驗證查詢，並保證
 CREATE TABLE user_sessions (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   session_token_hash BYTEA NOT NULL,
+  csrf_token_hash BYTEA NOT NULL,
   user_id BIGINT NOT NULL,
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL,
@@ -138,6 +139,7 @@ CREATE TABLE user_sessions (
 欄位與資料規則：
 
 - `session_token_hash` 使用 `BYTEA` 保存 SHA-256 雜湊後的 session token，不保存原始 token。
+- `csrf_token_hash` 使用 `BYTEA` 保存 SHA-256 雜湊後的 CSRF token，不保存原始 token。
 - `expires_at` 是 session 絕對到期時間；閒置期限由 Service 依 `last_seen_at` 判斷。
 - `revoked_at` 與 `revoked_reason` 必須同時存在或同時為 `NULL`。
 - Authentication Middleware 必須確認 session 未過期、未撤銷，且對應 `users` 帳號仍啟用。

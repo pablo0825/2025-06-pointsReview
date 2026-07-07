@@ -21,7 +21,7 @@
 
 安全規則：
 
-- API response 不回傳 `passwordHash`、任何 token、token hash、session token、CSRF token、`storageKey`、`signatureStorageKey`。
+- 除 `GET /auth/csrf-token` 外，API response 不回傳 `passwordHash`、任何 token、token hash、session token、CSRF token、`storageKey`、`signatureStorageKey`。
 - 公開學生點數 API 只回傳遮罩後姓名與學號。
 - 私有檔案 API 回傳 stream，不回傳 JSON 檔案內容。
 
@@ -448,6 +448,20 @@ Response：
   }
 }
 ```
+
+### `GET /auth/csrf-token`
+
+Response：
+
+```json
+{
+  "data": {
+    "csrfToken": "base64url-random-token"
+  }
+}
+```
+
+此 endpoint 需要有效 session。回傳的 `csrfToken` 綁定目前 session，前端應在 state-changing API 使用 `X-CSRF-Token` header 帶回。
 
 ### `POST /auth/activation/:token`
 
@@ -943,6 +957,7 @@ Cache-Control: no-store
 | `validation_failed` | 422 | Request schema 驗證失敗 |
 | `unauthenticated` | 401 | 尚未登入或 session 無效 |
 | `forbidden` | 403 | 缺少權限或不符合資料範圍 |
+| `csrf_token_invalid` | 403 | CSRF token 缺漏、格式錯誤或驗證失敗 |
 | `not_found` | 404 | 資源不存在或不揭露存在 |
 | `rate_limited` | 429 | 超過 rate limit |
 | `application_status_conflict` | 409 | 申請狀態已改變 |

@@ -5,6 +5,8 @@
 ## 已確認方向
 
 - 資料庫使用 PostgreSQL，應用程式透過 `pg` 存取。
+- 第一版正式環境使用 Redis 作為 rate limit store；local development 與單元測試可使用 in-memory store。
+- 第一版可使用 frontend、backend 分離容器，前方由 reverse proxy 對外提供同一個 HTTPS origin，例如 `/` 轉發 frontend、`/api` 轉發 backend。
 - Controller 只處理 HTTP 輸入輸出；Service 執行業務規則與 Transaction；Repository 集中管理 SQL。
 - 寄信失敗重試與尚未處理提醒是不同流程。
 - 敏感附件與簽名第一版使用伺服器本機私有目錄，透過權限驗證 API 存取。

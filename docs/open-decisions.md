@@ -124,14 +124,15 @@ Transaction 與併發控制初版已整理於 [Transaction 與併發控制](tran
 - 帳號啟用 token 有效期限建議 `24` 小時；密碼重設 token 有效期限建議 `30` 分鐘。
 - 密碼長度至少 `12` 字元，密碼雜湊優先使用 Argon2id。
 - 使用 cookie session 的 state-changing API 必須有 CSRF 防護。
+- CSRF token 綁定 `user_sessions`，資料庫只保存 `csrf_token_hash`；前端透過 `GET /auth/csrf-token` 取得，並以 `X-CSRF-Token` header 帶回。
 - 第一版不開放任意 CORS；正式環境 CORS allowlist 必須明確設定。
 - 登入、密碼重設、公開申請、補件與公開學生點數查詢都需要 rate limit。
+- 第一版正式環境使用 Redis-backed rate limit；local development 與單元測試可使用 in-memory store。
 - Log 與錯誤訊息不得輸出密碼、原始 token、token hash、session token、CSRF token、SQL error 原文或 stack trace。
 
 仍需實作時確認：
 
-- CSRF token 的實際產生與儲存方式。
-- Rate limit store 選型，例如 PostgreSQL、Redis 或反向代理。
+- Redis rate limit key 命名、window 設定與 middleware 套件。
 - Argon2id/bcrypt 的實際參數。
 - Session cookie 名稱與 domain。
 

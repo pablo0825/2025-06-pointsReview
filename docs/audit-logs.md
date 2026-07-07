@@ -215,4 +215,23 @@ AuditLogRepository
 AuditLogService
 ```
 
-`AuditLogRepository` 負責 `INSERT` 與查詢 SQL。`AuditLogService` 負責統一建立 metadata、遮罩敏感欄位，以及接收目前登入使用者、IP、user agent 與 transaction client。
+分工如下：
+
+- 業務 Service 負責決定何時需要建立稽核紀錄，例如管理員停用使用者、異動指導老師、查看敏感檔案或切換點數規則。
+- `AuditLogService` 負責把稽核內容整理成一致格式，包含 `actor_type`、`actor_user_id`、`action`、`resource_type`、`resource_id`、`resource_public_id`、`metadata`、`ip_address` 與 `user_agent`。
+- `AuditLogService` 必須在寫入前移除或遮罩敏感資料，例如密碼、原始 token、token hash、session token、CSRF token、附件內容與完整 storage key。
+- `AuditLogRepository` 只負責 `audit_logs` 的 `INSERT` 與查詢 SQL，不判斷業務語意，不讀取 HTTP context，也不自行開啟 Transaction。
+
+典型流程：
+
+```text
+AdminUserService.deactivateUser()
+  1. 在同一個 Transaction 中停用 users 目標資料列
+  2. 撤銷該使用者有效 session
+  3. 呼叫 AuditLogService.record(...)
+  4. AuditLogService 整理與清理 metadata
+  5. AuditLogRepository.insert(...) 寫入 audit_logs
+  6. commit
+```
+
+其他 Service 呼叫 `AuditLogService` 時，應傳入目前業務流程正在使用的 transaction client。這能確保主要操作與 `audit_logs` 一起 commit 或一起 rollback。

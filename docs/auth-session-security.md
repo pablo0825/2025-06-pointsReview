@@ -20,7 +20,7 @@
 
 正式欄位與 SQL 請參考 [資料模型 - user_sessions](data-model.md#使用者-session-user_sessions) 與 [資料庫 Schema - user_sessions](database-schema.md#user_sessions)。
 
-Session token 原文只放在瀏覽器 cookie；資料庫只保存 token hash。
+Session token 原文只放在瀏覽器 cookie；資料庫只保存 token hash。CSRF token 綁定 `user_sessions`，資料庫只保存 `csrf_token_hash`。
 
 不建議使用無狀態 JWT 作為第一版登入 session，避免帳號停用、角色變更與密碼重設後無法集中撤銷。
 
@@ -42,6 +42,7 @@ Path = /
 - `HttpOnly` 必須開啟，避免前端 JavaScript 讀取 session token。
 - 正式環境 `Secure` 必須開啟，只允許 HTTPS 傳送。
 - 第一版若前後端同站部署，`SameSite = Lax` 足夠。
+- 若 frontend 與 backend 是不同容器，但透過 reverse proxy 對外提供同一個 HTTPS origin，例如 `https://points.example.edu` 與 `/api`，仍視為同源部署。
 - 若未來前後端跨站部署且需要 cookie，才評估 `SameSite = None; Secure`，並加強 CSRF 防護。
 
 ## Session 有效期限
@@ -141,8 +142,15 @@ IP 維度：
 
 - `SameSite = Lax` 作為基本防護。
 - 所有 state-changing API 使用 CSRF token。
-- CSRF token 可由後端產生並放在 non-HttpOnly cookie 或 `/auth/csrf-token` 回傳，前端在 `X-CSRF-Token` header 帶回。
-- 後端驗證 header token 與 session 綁定值一致。
+- 登入建立 session 時，後端同時使用 crypto random bytes 產生 CSRF token，建議至少 `32` bytes random 並轉為 base64url 字串。
+- `user_sessions.csrf_token_hash` 只保存 CSRF token 的 SHA-256 hash，不保存原始 token。
+- 前端透過 `GET /auth/csrf-token` 取得原始 CSRF token，並在 state-changing API 使用 `X-CSRF-Token` header 帶回。
+- 後端驗證 header token hash 與目前 session 綁定的 `csrf_token_hash` 一致。
+- 第一版採每個 session 一個 CSRF token；登出、session 過期或 session 被撤銷時一併失效。
+- CSRF token 缺漏、格式錯誤或驗證失敗時，回傳 `403` 與錯誤碼 `csrf_token_invalid`。
+- 前端在登入成功後、頁面初始化且已有有效 session 時，呼叫 `GET /auth/csrf-token` 取得 token。
+- 前端收到 `csrf_token_invalid` 時，可重新呼叫 `GET /auth/csrf-token` 一次並重試原操作；若仍失敗，要求使用者重新整理頁面或重新登入。
+- 登出後前端必須清除記憶體中的 CSRF token。
 
 公開 API 若不使用 session cookie，例如建立申請、補件 token、公開點數查詢，仍需 rate limit，但不一定需要 CSRF token。
 
@@ -152,6 +160,7 @@ IP 維度：
 
 - 不需要開放跨網域 CORS。
 - 僅允許 same-origin request。
+- frontend 與 backend 即使分屬不同容器，只要經 reverse proxy 對外維持同一個 origin，仍屬於此情境。
 
 若開發環境需要跨 origin：
 
@@ -173,7 +182,16 @@ IP 維度：
 | `POST /public/applications/revisions/:token` | 每 IP 每小時 20 次 |
 | `GET /public/student-points` | 每 IP 每分鐘 60 次 |
 
-Rate limit store 可先使用記憶體或 PostgreSQL；正式多 instance 部署時應改用 Redis 或集中式 store。
+第一版正式環境使用 Redis-backed rate limit。Local development 與單元測試可使用 in-memory store，但不可作為正式部署設定。
+
+Rate limit key 依場景選擇：
+
+- 登入與公開 API：以 IP 為主要限制維度。
+- 登入失敗鎖定：以 Email normalize 後的帳號識別加上失敗次數限制。
+- 密碼重設：同時限制 Email 與 IP。
+- 登入後 API：可依 `user_id` 限制高頻操作。
+
+Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態，不保存密碼、原始 token、session token 或 CSRF token。
 
 ## 公開 API 防濫用
 
@@ -245,7 +263,7 @@ Rate limit store 可先使用記憶體或 PostgreSQL；正式多 instance 部署
 - 驗證登入失敗限制。
 - 驗證密碼。
 - 驗證 `users.is_active` 與 `activated_at`。
-- 建立 session。
+- 建立 session 與該 session 綁定的 CSRF token hash。
 - 更新 `last_login_at`。
 
 `AuthService.logout` 必須撤銷目前 session。
@@ -254,7 +272,6 @@ Rate limit store 可先使用記憶體或 PostgreSQL；正式多 instance 部署
 
 ## 尚待實作時確認
 
-- CSRF token 的實際產生與儲存方式。
-- Rate limit store 選型。
+- Redis rate limit key 命名、window 設定與 middleware 套件。
 - Argon2id/bcrypt 的實際參數。
 - Session cookie 名稱與 domain。
