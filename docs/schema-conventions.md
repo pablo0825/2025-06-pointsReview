@@ -142,7 +142,7 @@ ON UPDATE RESTRICT
 採用此策略的原因：
 
 - 寫入資料庫的申請都屬於正式紀錄，沒有資料庫草稿階段。
-- 帳號、教師、申請、版本、附件、簽名、審核紀錄、點數規則與點數流水帳都具有歷史或稽核價值。
+- 帳號、教師、申請、版本、附件、簽名、審核紀錄、通用稽核紀錄、點數規則與點數流水帳都具有歷史或稽核價值。
 - `RESTRICT` 可以防止程式錯誤或管理操作意外刪除仍被引用的正式資料。
 - 內部 `BIGINT` 主鍵建立後不得修改，因此外鍵不允許連帶更新。
 
@@ -295,6 +295,6 @@ Partial Unique Index 只能防止符合條件的資料重複。例如 `one_appli
 - `student_point_transactions (academic_year_snapshot, student_number)`：公開點數總表依學年度與學號搜尋。
 - `point_applications (status, submitted_at)`：承辦人待審核列表。
 - `point_applications (advisor_id, status)`：指導老師查看自己的待簽核申請。
-- Token Hash 欄位：帳號啟用、密碼重設及補件連結查詢。
+- Token Hash 欄位：帳號啟用、密碼重設、session 驗證及補件連結查詢。
 
 索引會增加寫入及儲存成本；除上述核心查詢外，其餘索引應在 API 查詢設計完成後，依實際 SQL 與 `EXPLAIN ANALYZE` 結果補充。

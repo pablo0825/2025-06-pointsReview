@@ -5,8 +5,11 @@
 ## Schema 完成狀態
 
 - [x] `users`
+- [x] `user_sessions`
+- [x] `audit_logs`
 - [x] `advisors`
 - [x] `point_applications`
+- [x] `email_tasks`
 - [x] `application_participants`
 - [x] 四種申請類型專屬資料表
 - [x] 四種點數規則資料表
@@ -98,6 +101,201 @@ WHERE role = 'admin' AND is_active = TRUE;
 ```
 
 Token Hash Partial Unique Index 同時用於加速連結驗證查詢，並保證一個 Token 只能對應一個帳號。
+
+## `user_sessions`
+
+```sql
+CREATE TABLE user_sessions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  session_token_hash BYTEA NOT NULL,
+  user_id BIGINT NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  revoked_reason TEXT,
+  ip_address INET NOT NULL,
+  user_agent TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT user_sessions_expiry_check
+    CHECK (expires_at > created_at),
+
+  CONSTRAINT user_sessions_revoked_pair_check
+    CHECK (
+      (revoked_at IS NULL AND revoked_reason IS NULL)
+      OR
+      (revoked_at IS NOT NULL AND revoked_reason IS NOT NULL)
+    ),
+
+  CONSTRAINT user_sessions_user_fk
+    FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `session_token_hash` 使用 `BYTEA` 保存 SHA-256 雜湊後的 session token，不保存原始 token。
+- `expires_at` 是 session 絕對到期時間；閒置期限由 Service 依 `last_seen_at` 判斷。
+- `revoked_at` 與 `revoked_reason` 必須同時存在或同時為 `NULL`。
+- Authentication Middleware 必須確認 session 未過期、未撤銷，且對應 `users` 帳號仍啟用。
+- `user_sessions` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE UNIQUE INDEX user_sessions_token_hash_unique
+ON user_sessions (session_token_hash);
+
+CREATE INDEX idx_user_sessions_user_active
+ON user_sessions (user_id, expires_at)
+WHERE revoked_at IS NULL;
+
+CREATE INDEX idx_user_sessions_expires_at
+ON user_sessions (expires_at)
+WHERE revoked_at IS NULL;
+```
+
+各索引用途：
+
+- `user_sessions_token_hash_unique`：Authentication Middleware 依 cookie token hash 查詢 session。
+- `idx_user_sessions_user_active`：登出全部裝置、帳號停用、密碼重設、角色變更與管理員移交時撤銷某使用者所有有效 session。
+- `idx_user_sessions_expires_at`：清理過期且未撤銷的 session。
+
+建立順序：
+
+1. 建立 `users`。
+2. 建立 `user_sessions`。
+3. 建立三個索引。
+4. 為 `user_sessions` 掛上 `set_updated_at()` Trigger。
+
+## `audit_logs`
+
+```sql
+CREATE TABLE audit_logs (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  actor_type VARCHAR(20) NOT NULL,
+  actor_user_id BIGINT,
+  action VARCHAR(80) NOT NULL,
+  resource_type VARCHAR(50) NOT NULL,
+  resource_id BIGINT,
+  resource_public_id UUID,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT audit_logs_actor_type_check
+    CHECK (actor_type IN ('user', 'system', 'maintenance')),
+
+  CONSTRAINT audit_logs_actor_user_pair_check
+    CHECK (
+      (actor_type = 'user' AND actor_user_id IS NOT NULL)
+      OR
+      (actor_type IN ('system', 'maintenance') AND actor_user_id IS NULL)
+    ),
+
+  CONSTRAINT audit_logs_request_source_pair_check
+    CHECK (
+      (ip_address IS NULL AND user_agent IS NULL)
+      OR
+      (ip_address IS NOT NULL AND user_agent IS NOT NULL)
+    ),
+
+  CONSTRAINT audit_logs_action_check
+    CHECK (action IN (
+      'user.created',
+      'user.updated',
+      'user.activated',
+      'user.deactivated',
+      'user.activation_resent',
+      'user.password_reset_sent',
+      'user.password_reset_completed',
+      'user.sessions_revoked',
+      'admin.transferred',
+      'admin.recovered',
+      'advisor.created',
+      'advisor.updated',
+      'advisor.activated',
+      'advisor.deactivated',
+      'advisor.director_assigned',
+      'point_rule.created',
+      'point_rule.deactivated',
+      'application_attachment.viewed',
+      'advisor_signature.viewed',
+      'point_change_request.created',
+      'point_change_request.approved',
+      'point_change_request.rejected',
+      'maintenance.admin_created',
+      'maintenance.admin_recovered',
+      'system.expired_applications_processed',
+      'system.email_task_failed_permanently'
+    )),
+
+  CONSTRAINT audit_logs_resource_type_check
+    CHECK (resource_type IN (
+      'user',
+      'advisor',
+      'point_rule',
+      'point_application',
+      'application_attachment',
+      'advisor_signature',
+      'student_point_change_request',
+      'student_point_transaction',
+      'email_task',
+      'maintenance_command',
+      'system_job'
+    )),
+
+  CONSTRAINT audit_logs_actor_user_fk
+    FOREIGN KEY (actor_user_id) REFERENCES users (id)
+    ON DELETE RESTRICT
+    ON UPDATE RESTRICT
+);
+```
+
+欄位與資料規則：
+
+- `audit_logs` 是跨模組不可變稽核紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- `actor_type = 'user'` 時，`actor_user_id` 必須有值並關聯 `users.id`。
+- `actor_type IN ('system', 'maintenance')` 時，`actor_user_id` 必須為 `NULL`。
+- `resource_id` 與 `resource_public_id` 是多型資源識別欄位，不建立外鍵；Service 必須依 `resource_type` 寫入正確目標。
+- `metadata` 預設為空物件，僅保存不敏感的輔助資訊。
+- `ip_address` 與 `user_agent` 必須同時存在或同時為 `NULL`；使用者 API 操作應盡量寫入兩者，系統背景任務與維運指令可為 `NULL`。
+- 不可實體刪除既有紀錄，不提供更新 API。
+
+索引：
+
+```sql
+CREATE INDEX idx_audit_logs_created
+ON audit_logs (created_at DESC, id DESC);
+
+CREATE INDEX idx_audit_logs_actor_created
+ON audit_logs (actor_user_id, created_at DESC, id DESC)
+WHERE actor_user_id IS NOT NULL;
+
+CREATE INDEX idx_audit_logs_resource_created
+ON audit_logs (resource_type, resource_id, created_at DESC, id DESC)
+WHERE resource_id IS NOT NULL;
+
+CREATE INDEX idx_audit_logs_action_created
+ON audit_logs (action, created_at DESC, id DESC);
+```
+
+各索引用途：
+
+- `idx_audit_logs_created`：管理員依時間倒序查詢全部稽核紀錄。
+- `idx_audit_logs_actor_created`：依操作使用者篩選。
+- `idx_audit_logs_resource_created`：依資源類型與內部 id 篩選。
+- `idx_audit_logs_action_created`：依操作代碼篩選。
+
+建立順序：
+
+1. 確認 `users` 已建立。
+2. 建立 `audit_logs`。
+3. 建立四個索引。
 
 ## `advisors`
 
@@ -988,6 +1186,7 @@ CREATE TABLE advisor_signatures (
 欄位與資料規則：
 
 - 沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
+- `signature_storage_key` 是私有檔案識別值，不是公開 URL 或作業系統絕對路徑；實體檔案規則請參考 [私有檔案儲存設計](file-storage.md)。
 - 簽名失效採 UPDATE 既有紀錄（`invalidated_at` 與 `invalidated_reason` 同時寫入），不 INSERT 失效紀錄。
 - `advisor_user_id` 對應 `users.id`；該帳號必須是該申請的指導老師（透過 `advisors.user_id` 與 `point_applications.advisor_id` 對應），由 Service 在 Transaction 內驗證。
 - `invalidated_reason` 為自由文字，目前僅有「補件提交導致失效」一種情境，未來如需區分多種原因可改為列舉欄位。
@@ -1067,6 +1266,7 @@ CREATE TABLE application_attachments (
 
 - `application_attachments` 為不可變紀錄，沒有 `updated_at`，**不掛 `set_updated_at()` Trigger**。
 - 補件保留附件採 INSERT 新 row 的設計，允許多筆 row 共用同一 `storage_key`；因此 `storage_key` 本身不建立全域 UNIQUE。
+- `storage_key` 是私有檔案識別值，不是公開 URL 或作業系統絕對路徑；實體檔案規則請參考 [私有檔案儲存設計](file-storage.md)。
 - 複合外鍵 `(application_version_id, application_id) → application_versions (id, application_id)` 確保附件的版本確實屬於同一筆申請；複用 `application_versions` 為循環外鍵建立的 `UNIQUE (id, application_id)`。
 - 每筆申請最多 10 個附件、每檔最多 5 MB、檔案格式限制 PDF/JPEG/PNG 等規則，由上傳處理層與 Service 保證，資料庫層不建立額外 CHECK 以保留調整彈性。
 - 各申請類型最低附件要求（如競賽申請需 `participation_proof` 或 `finalist_or_award_certificate`）由 Service 在送件 Transaction 內驗證。
@@ -1386,7 +1586,7 @@ CREATE TABLE student_point_change_requests (
 
 - 多態 `CHECK` 強制三種 `status` 對應的欄位狀態，避免出現「approved 但 created_transaction_id NULL」等不一致。
 - `requested_points <> 0` 由資料庫保證；正負方向與業務上限（adjustment 後不得 < 0、reversal 必須等於原始相反數）由 Service 驗證。
-- 不保存 `ip_address` 與 `user_agent`；詳細稽核依賴規劃中的 `audit_logs` 表（見 [待決策項目](open-decisions.md#4-通用系統稽核紀錄)）。
+- 不保存 `ip_address` 與 `user_agent`；詳細稽核依賴 [通用系統稽核紀錄](audit-logs.md) 中的 `audit_logs`。
 - `requested_by_user_id` 應為承辦人，`reviewed_by_user_id` 應為管理員，由 Service 依 `users.role` 驗證。
 - `student_point_change_requests` 必須掛上共用 `set_updated_at()` Trigger（status 從 `pending` 變更時會 UPDATE）。
 

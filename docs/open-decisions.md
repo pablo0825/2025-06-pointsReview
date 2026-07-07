@@ -1,259 +1,145 @@
-﻿# 待決策項目
+﻿# 實作時確認項目
 
-本文件只保存尚未完成正式設計的問題。決策完成後，應將結果移至對應正式文件，並從本文件移除或標記完成。
+第一版正式設計已收斂。本文件保留實作時仍需選型、設定或與前端／部署環境確認的項目；這些項目不阻塞第一版資料模型、API、Transaction、Storage、Testing 等設計。
 
-## 待討論項目
+若某項目升級為會影響資料模型、API contract 或流程語意的設計變更，應移至對應正式文件更新。
 
-以下項目尚未完成正式設計。後續討論時應逐項確認決策，並將確定內容移至對應的正式設計章節。
+## 實作時確認項目
 
-### 1. 指導老師簽名檔案儲存
+### 1. Email Queue 與通知排程
+
+Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](email-queue.md)。
 
 目前已確認：
-
-- 簽名板固定輸出 PNG。
-- 簽名檔案屬於敏感資料，不可使用公開靜態網址。
-- 資料庫使用 `signature_storage_key` 保存檔案識別值。
-
-仍需討論：
-
-- 第一版使用伺服器本機私有目錄、S3、MinIO 或其他物件儲存。
-- 簽名圖片的最大檔案大小、像素尺寸及是否需要壓縮。
-- 簽名檔案的備份與災難復原方式。
-- 簽名檔案保存期限及是否永久保存。
-- 指導老師、承辦人與管理員查看簽名時的 API 與稽核規則。
-- 簽名檔案遺失或損壞時的處理方式。
-
-目前建議：
-
-- 第一版可使用伺服器本機私有目錄，透過有權限驗證的 API 讀取。
-- 儲存介面應封裝，讓未來可以替換成 S3 或 MinIO。
-- 簽名應跟隨申請與審核紀錄長期保存，不由一般使用者刪除。
-
-### 2. Email Queue 與通知排程
-
-系統的帳號啟用、老師簽核、補件、逾期作廢與核准通知都依賴 Email，因此需要獨立設計可靠的寄信任務。
-
-仍需討論：
-
-- 寄送失敗的預設最大重試次數、重試間隔與退避策略。
-- 老師三次簽核提醒的實際寄送時間。
-- 寄送永久失敗時，如何通知承辦人或管理員。
-- Email 寄送服務與寄件者設定。
-
-目前建議：
 
 - 第一版使用 `email_tasks` 作為通用寄信任務佇列，任務狀態為 `pending`、`processing`、`sent`、`failed`、`cancelled`。
 - 使用 `event_key` 防止重複建立同一通知。
 - 使用 `attempt_count` 與 `max_attempts` 記錄並限制最大嘗試寄送次數。
 - `email_tasks` 保存收件人、模板名稱、模板資料、排程時間、成功時間、嘗試次數與最近一次錯誤。
-- 寄送失敗使用有限次數重試；超過次數後標記永久失敗並通知系統管理者。
+- 寄送失敗使用有限次數重試；第一版預設 `max_attempts = 5`。
+- Worker 使用 `FOR UPDATE SKIP LOCKED` claim pending tasks。
+- 老師簽核提醒第一版排程為期限前 `72` 小時、`24` 小時與 `4` 小時。
+- 補件提醒第一版排程為期限前 `24` 小時。
+- 寄送永久失敗時建立 `email_delivery_failed` 通知，並避免失敗通知無限遞迴。
 - Email 寄送失敗本身不應直接讓申請作廢。
 - `advisor_confirmation_expires_at` 是指導老師簽核最後期限；提醒信必須在期限前寄送，逾期後不再自動寄送簽核連結。
 
-### 3. 通知失敗與申請作廢政策
+仍需實作時確認：
 
-目前已確認老師逾期未簽核，以及申請人補件逾期時，申請會自動改為 `rejected` 並作廢。
+- Email provider，例如 SMTP、SendGrid、Mailgun 或學校信件服務。
+- 寄件者名稱、reply-to 與 provider message id 是否保存。
+- Email template 實際 subject 與 HTML/text 內容。
+- 管理後台是否提供 failed email tasks 列表與手動重寄。
 
-仍需討論：
+### 2. 通知失敗與申請作廢政策
 
-- 老師簽核 Email 一直寄送失敗時，申請是否繼續計算簽核期限。
-- 補件 Email 無法寄達時，補件期限是否照常計算。
-- Email 永久失敗時，是否建立承辦人待處理通知。
-- 因 Email 無法寄達造成的作廢，是否允許特殊處理。
-- 作廢申請是否在任何情況下都不可恢復。
+通知失敗與申請作廢政策已併入 [Email Queue 與通知排程](email-queue.md#通知失敗與申請作廢政策)。
 
-目前建議：
+目前已確認：
 
 - 系統應區分「使用者收到通知但未處理」與「系統無法成功寄送通知」。
 - Email 永久失敗時，通知承辦人處理，不應直接將申請作廢。
+- Email 失敗不會自動延長 `advisor_confirmation_expires_at` 或 `edit_token_expires_at`。
 - 已正常通知但逾期未處理的申請，作廢後不可恢復。
 - 指導老師逾期未簽核時，系統將申請設為 `rejected`，寫入 `advisor_confirmation_expired` 審核操作紀錄，並寄送作廢通知給申請人。
 - 若需延長指導老師簽核期限，應由承辦人或管理員明確操作；第一版可先不實作期限延長。
 
-### 4. 通用系統稽核紀錄
+仍需實作時確認：
 
-`application_review_actions` 只記錄申請審核流程，帳號、教師、規則與管理操作仍需要通用稽核紀錄。
+- 管理後台人工處理 Email 永久失敗的畫面與流程。
+- 因 Email 無法寄達造成特殊處理時，是否需要額外審核紀錄 action type。
 
-預計建立：
+### 3. Migration 與初始資料 Seed
 
-```text
-audit_logs
-- id
-- actor_user_id
-- action
-- resource_type
-- resource_id
-- metadata
-- ip_address
-- user_agent
-- created_at
-```
-
-仍需討論：
-
-- 哪些操作必須建立稽核紀錄。
-- `action` 與 `resource_type` 的固定值。
-- 系統背景任務如何記錄操作人。
-- 稽核紀錄的查詢權限。
-- 稽核紀錄保存期限。
-- 是否需要匯出稽核報表。
-
-目前建議至少記錄：
-
-- 帳號建立、啟用、停用、角色修改與管理員移交。
-- 指導老師建立、停用與主任異動。
-- 點數規則建立與失效。
-- 管理員查看簽名、附件等敏感資料。
-- 管理員核准或拒絕點數異動申請。
-- 管理員帳號復原。
-
-### 5. PostgreSQL Schema 詳細設計
-
-邏輯資料模型、共用 Schema 規範與可執行 SQL 已拆分管理。**所有資料表與 `student_points_summary` View 的 PostgreSQL Schema 已完成**，可直接轉換為 Migration；學生點數摘要已納入學年度、年級與班級歸屬快照設計。
+Migration 與 Seed 初版方案已整理於 [Migration 與 Seed 方案](migration-plan.md)。
 
 目前已確認：
 
-- 所有資料表內部主鍵使用 `BIGINT GENERATED ALWAYS AS IDENTITY`。
-- 內部外鍵關聯統一使用 `BIGINT`。
-- 直接出現在 API URL、Email 連結或管理後台 URL 的資源，額外使用 UUID `public_id`。
-- 目前 `point_applications`、`application_attachments` 與 `student_point_change_requests` 需要 `public_id`。
-- UUID 不取代權限與資料所有權檢查。
-- 時間點使用 `TIMESTAMPTZ`，純日期使用 `DATE`。
-- 點數使用 `NUMERIC(10, 2)`，新台幣金額使用 `BIGINT` 整數元。
-- Email、姓名、學號、電話及一般名稱欄位的共用長度規範已定義於 Schema 設計規範。
-- 版本快照與結構化資料使用 `JSONB`，IP 位址使用 `INET`。
-- 欄位預設使用 `NOT NULL`；確實可能不存在的資料才允許 `NULL`。
-- 所有具有 `updated_at` 的資料表統一使用 PostgreSQL Trigger 自動更新時間。
-- `advisors.title_code` 使用 `SMALLINT` 固定代碼保存職稱，顯示文字由 API 或前端依對照表產生；若未來職稱需要後台維護，再評估拆出 `advisor_titles` 對照表。
-- `application_participants` 保存申請當下的 `academic_year`、`grade`、`class_number`，`student_point_transactions` 保存對應不可變快照。
-- `student_points_summary` 依學年度、年級、班級與學號分組；若日後需要學生生涯累積總表，另建 `student_lifetime_points_summary`。
-- 延後畢業學生歸類已討論，第一版不新增特殊狀態或額外年級值；目前以申請當下行政歸屬年級班級為準。
-- 所有外鍵統一使用 `ON DELETE RESTRICT ON UPDATE RESTRICT`。
-- 第一版不使用 `ON DELETE CASCADE` 或 `ON DELETE SET NULL`。
-- 正式資料不可實體刪除；使用停用、失效、狀態與點數沖銷保留歷史。
-- 申請送出前不寫入草稿或暫存附件，附件與申請資料在同一次送出流程中建立。
-- 請求先由 Zod 驗證格式與可從單次 Request 判斷的規則，再進入 Service 與資料庫 Transaction。
-- Service 負責需要查詢資料庫、跨資料列及流程狀態的業務規則。
-- PostgreSQL 使用 `CHECK`、`UNIQUE`、Partial Unique Index 與 Transaction 作為最終資料完整性保護。
-- 第一版核心 Constraint 與 Index 清單已定義於 Schema 設計規範。
-- 點數規則有效期間使用半開區間 `[effective_from, effective_to)`，`effective_to` 當天開始失效。
-- 各點數規則表使用 Exclusion Constraint 防止同一種規則的有效日期重疊。
-- 管理員切換規則時，必須在同一個 Transaction 中結束舊規則並建立新規則。
-- `point_applications.current_version_id` 保存 `application_versions.id`，不是 `version_number`。
-- 使用複合外鍵確保 `current_version_id` 指向同一筆申請所擁有的版本。
-- 建立申請時 `current_version_id` 暫時允許為 `NULL`，申請、第一版快照與目前版本更新必須在同一個 Transaction 中完成。
-- 循環外鍵由 Migration 先建立兩張資料表，再使用 `ALTER TABLE` 建立 `current_version_id` 複合外鍵。
-- `users` 的實際 PostgreSQL 欄位型別、`NULL` 規則、Constraint 與 Index 已確定。
-- 帳號新增 `activated_at`，用來區分尚未完成首次啟用與後續被管理員停用。
-- 帳號啟用與密碼重設 Token Hash 使用 `BYTEA`，並建立非 `NULL` 值的 Partial Unique Index。
+- 第一版建議使用 `node-pg-migrate`。
+- Migration 以 raw SQL 為主，從 [資料庫 Schema](database-schema.md) 轉換。
+- Migration 依資料表外鍵與循環外鍵順序拆分，`point_applications.current_version_id` 複合外鍵使用後置 `ALTER TABLE` 建立。
+- Seed 與 Migration 分開管理，避免正式環境誤寫入展示資料。
+- 固定代碼如 `advisors.title_code`、`grade` 與 `class_number` 第一版不建立 seed table，由程式常數或 enum 對照表維護。
+- 初始管理員不寫入 schema migration，改由受控維運指令建立。
+- 正式環境以 forward migration 修正為主，不依賴自動 down migration 回滾。
 
-仍需討論：
+仍需實作時確認：
 
-- （PostgreSQL Schema 詳細設計已完成所有資料表，本項目可移除。）
+- 實際 migration 檔名採純序號或 timestamp。
+- `node-pg-migrate` 的專案設定、npm scripts 與 migration table 名稱。
+- 初始點數規則 seed 的實際資料內容。
+- 開發與測試環境 seed 的資料量與展示案例。
 
-### 6. Migration 與初始資料 Seed
+### 4. API Endpoint 與 Service 邊界
 
-仍需討論：
+API Endpoint 與 Service 邊界初版已整理於 [API 與 Service 邊界](api-service-boundaries.md)。
 
-- 使用哪個 Migration 工具，例如 `node-pg-migrate`。
-- Migration 檔案命名及執行規則。
-- 初始管理員建立方式。
-- 初始競賽、參與計畫、證照及校外展覽點數規則 Seed。
-- 開發、測試與正式環境的 Seed 差異。
-- Migration 失敗與回滾策略。
-
-### 7. API Endpoint 與 Service 邊界
-
-仍需討論：
-
-- 公開申請 API。
-- 補件 Token 驗證與重新提交 API。
-- 指導老師登入後的待簽核、簽名與拒絕 API。
-- 承辦人待審列表、補件、調整、核准與拒絕 API。
-- 管理員帳號、教師、主任、點數規則與異動申請管理 API。
-- 公開學生點數總表查詢 API。
-- 私有附件與簽名檔案存取 API。
-- Controller、Service、Repository 的責任邊界。
-- API Response、錯誤代碼、分頁與排序格式。
-
-目前建議：
+目前已確認：
 
 - Controller 只處理 HTTP 輸入輸出。
 - Service 執行業務規則與 Transaction。
 - Repository 集中管理 SQL 查詢。
+- 公開、指導老師、承辦人、管理員、私有檔案與 Auth API 已完成第一版分組。
+- API 文件已標示主要權限、Service function 與是否需要 Transaction。
+- API request / response schema、分頁、錯誤碼與私有檔案 header 已整理於 [API Request / Response Schema](api-schemas.md)。
+- 已定義 `public_id` 的資源，API URL 使用 `public_id`，不暴露內部 `BIGINT id`；未定義 `public_id` 的後台管理資源第一版可使用內部 id。
+- List API 必須使用分頁。
 
-### 8. Transaction 與併發控制
+仍需實作時確認：
 
-目前已確認部分重要操作需要 PostgreSQL Transaction 與 `SELECT ... FOR UPDATE`。
+- 是否將 [API Request / Response Schema](api-schemas.md) 轉為正式 OpenAPI 規格。
+- 前端是否需要更細的欄位級錯誤代碼或顯示文字。
+- Auth API 需依 [登入、Session 與安全設計](auth-session-security.md) 實作 session、cookie、CSRF 與 rate limit。
+- Multipart 檔案欄位命名可依前端表單實作再做微調。
 
-仍需完整列出 Transaction 邊界：
+### 5. Transaction 與併發控制
 
-- 建立申請、參與者、專屬資料、附件與第一版快照。
-- 補件重新提交、建立新版本、更新目前版本與使舊簽名失效。
-- 承辦人核准申請與建立所有學生點數流水帳。
-- 管理員核准點數異動申請與建立調整流水帳。
-- 管理員移交。
-- 主任異動。
-- 規則版本切換。
+Transaction 與併發控制初版已整理於 [Transaction 與併發控制](transaction-concurrency.md)。
 
-仍需討論：
+目前已確認：
 
-- 各流程需要鎖定哪些資料列。
-- 證照累積上限的併發保護方式。
-- 背景任務與人工操作同時執行時的衝突處理。
-- API 重試時如何確保操作冪等。
+- Transaction 由 Service 控制，Controller 不直接處理 Transaction。
+- Repository function 必須可接收一般 database client 或 transaction client。
+- 申請狀態轉換與最終審核操作使用 `point_applications FOR UPDATE`。
+- Email tasks 與主流程狀態變更在同一個 Transaction 中建立，實際寄送由 worker 在 commit 後處理。
+- 證照累積上限第一版使用 PostgreSQL advisory transaction lock，以學生學號作為鎖定 key。
+- 背景逾期作廢任務必須使用與人工操作相同的鎖定與狀態重驗策略。
 
-### 9. 登入、Session 與安全
+仍需實作時確認：
 
-仍需討論：
+- advisory lock key 目前使用 `certificate-points:` namespace；實作時需確認 hash function 與參數型別。
+- 各 Service 對資料庫 constraint error 的錯誤碼轉換。
+- 是否需要通用 idempotency key 機制；第一版先依 unique constraint 與 token 清除處理重複提交。
 
-- Access Token 與 Refresh Token，或伺服器 Session 的選擇。
-- Token 有效期限與撤銷方式。
-- 帳號停用、密碼修改及角色變更後，現有 Session 是否立即失效。
-- 登入失敗次數限制及暫時鎖定。
-- 密碼強度規則。
-- Cookie 的 `HttpOnly`、`Secure` 與 `SameSite` 設定。
-- CSRF、CORS 與 Rate Limit。
-- 公開申請、補件與學生點數查詢 API 的濫用防護。
-- 敏感欄位在 Log 與錯誤訊息中的遮罩。
+### 6. 登入、Session 與安全
 
-### 10. 測試策略
+登入、Session 與安全初版已整理於 [登入、Session 與安全設計](auth-session-security.md)。
 
-仍需討論：
+目前已確認：
 
-- 單元測試、整合測試與端對端測試的範圍。
-- PostgreSQL 測試資料庫與 Transaction Rollback 策略。
-- 各申請類型點數規則測試。
-- 補件、多版本與重新簽名流程測試。
-- 角色權限與資料所有權測試。
-- 多位承辦人同時操作的併發測試。
-- Email Queue、逾期提醒與自動作廢測試。
-- 核准後點數異動與沖銷測試。
+- 第一版採 server-side session + `HttpOnly` cookie，不採無狀態 JWT 作為主要登入 session。
+- Cookie 設定使用 `HttpOnly = true`、正式環境 `Secure = true`、`SameSite = Lax`。
+- Session 閒置有效期限建議 `8` 小時，絕對有效期限建議 `7` 天。
+- 登出、帳號停用、密碼重設、角色變更、管理員移交與管理員復原都必須撤銷相關 session。
+- 帳號啟用 token 有效期限建議 `24` 小時；密碼重設 token 有效期限建議 `30` 分鐘。
+- 密碼長度至少 `12` 字元，密碼雜湊優先使用 Argon2id。
+- 使用 cookie session 的 state-changing API 必須有 CSRF 防護。
+- 第一版不開放任意 CORS；正式環境 CORS allowlist 必須明確設定。
+- 登入、密碼重設、公開申請、補件與公開學生點數查詢都需要 rate limit。
+- Log 與錯誤訊息不得輸出密碼、原始 token、token hash、session token、CSRF token、SQL error 原文或 stack trace。
 
-### 11. 舊 MongoDB 資料遷移
+仍需實作時確認：
 
-仍需確認舊系統資料是否需要保留並遷移至 PostgreSQL。
+- CSRF token 的實際產生與儲存方式。
+- Rate limit store 選型，例如 PostgreSQL、Redis 或反向代理。
+- Argon2id/bcrypt 的實際參數。
+- Session cookie 名稱與 domain。
 
-若需要遷移，必須討論：
-
-- 舊申請、帳號、附件、點數與寄信任務需要遷移的範圍。
-- 舊狀態與新狀態的對應。
-- 舊表單缺少版本、簽名與規則關聯時的處理方式。
-- 資料清理、驗證與遷移報告。
-- 遷移期間的停機或唯讀策略。
-
-若此專案主要用於重新開發與面試展示，可以不遷移舊資料，改用 Seed 建立展示資料。
-
-### 建議討論順序
+### 建議確認順序
 
 1. Email Queue 與通知排程。
 2. 通知失敗與申請作廢政策。
-3. 指導老師簽名檔案儲存。
-4. 通用系統稽核紀錄。
-5. PostgreSQL Schema 詳細設計。
-6. Migration 與初始資料 Seed。
-7. API Endpoint 與 Service 邊界。
-8. Transaction 與併發控制。
-9. 登入、Session 與安全。
-10. 測試策略。
-11. 舊 MongoDB 資料是否遷移。
+3. Migration 與初始資料 Seed。
+4. API Endpoint 與 Service 邊界。
+5. Transaction 與併發控制。
+6. 登入、Session 與安全。

@@ -7,12 +7,15 @@
 ```mermaid
 erDiagram
     USERS ||--o| ADVISORS : "教師登入帳號"
+    USERS ||--o{ USER_SESSIONS : "登入 Session"
+    USERS ||--o{ AUDIT_LOGS : "執行管理操作"
     ADVISORS ||--o{ POINT_APPLICATIONS : "負責簽核"
     POINT_APPLICATIONS ||--o{ APPLICATION_PARTICIPANTS : "包含參與者"
     POINT_APPLICATIONS ||--o| COMPETITION_APPLICATION_DETAILS : "競賽專屬資料"
     COMPETITION_POINT_RULES ||--o{ COMPETITION_APPLICATION_DETAILS : "使用點數規則"
     POINT_APPLICATIONS ||--o| PROJECT_PARTICIPATION_DETAILS : "參與計畫專屬資料"
     PROJECT_POINT_RULES ||--o{ PROJECT_PARTICIPATION_DETAILS : "使用薪資換點規則"
+    POINT_APPLICATIONS ||--o{ EMAIL_TASKS : "建立通知任務"
     POINT_APPLICATIONS ||--o| CERTIFICATE_APPLICATION_DETAILS : "證照專屬資料"
     CERTIFICATE_POINT_RULES ||--o{ CERTIFICATE_APPLICATION_DETAILS : "使用證照點數規則"
     POINT_APPLICATIONS ||--o| EXTERNAL_EXHIBITION_DETAILS : "校外展覽專屬資料"
@@ -72,6 +75,70 @@ erDiagram
 - `activated_at IS NULL`：尚未完成首次帳號啟用。
 - `activated_at IS NOT NULL AND is_active = TRUE`：已完成啟用，目前可以登入。
 - `activated_at IS NOT NULL AND is_active = FALSE`：曾經完成啟用，但後來被管理員停用。
+
+## 使用者 Session `user_sessions`
+
+保存 server-side session 狀態。瀏覽器 cookie 只保存原始 session token，資料庫只保存 SHA-256 token hash，讓系統可以集中撤銷登入狀態。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `session_token_hash` | Session token 的 SHA-256 雜湊值，必須唯一 |
+| `user_id` | 關聯 `users.id` |
+| `last_seen_at` | 最近一次成功使用此 session 的時間 |
+| `expires_at` | Session 絕對到期時間 |
+| `revoked_at` | Session 撤銷時間，可為 `NULL` |
+| `revoked_reason` | 撤銷原因，可為 `NULL` |
+| `ip_address` | 建立 session 時的來源 IP |
+| `user_agent` | 建立 session 時的瀏覽器資訊 |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+資料規則：
+
+- `session_token_hash` 使用 `BYTEA`，不保存原始 session token。
+- `expires_at` 必須晚於 `created_at`。
+- `revoked_at` 與 `revoked_reason` 必須同時存在或同時為 `NULL`。
+- Authentication Middleware 每次驗證 session 時，必須確認 session 未過期、未撤銷，且 `users.is_active = TRUE`、`users.activated_at IS NOT NULL`。
+- 登出、帳號停用、密碼重設、角色變更、管理員移交與管理員復原都必須撤銷相關 session。
+- `last_seen_at` 可定期更新，不需要每個 request 都更新；實作可用節流避免過度寫入。
+
+Session 有效期限、Cookie、CSRF 與 Rate Limit 規則請參考 [登入、Session 與安全設計](auth-session-security.md)。
+
+## 通用系統稽核紀錄 `audit_logs`
+
+保存跨模組安全與管理操作紀錄，例如帳號管理、指導老師管理、主任異動、點數規則管理、敏感檔案查看、系統背景任務與維運指令。一般申請流程的審核狀態轉換仍由 `application_review_actions` 記錄。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `actor_type` | 操作來源類型 |
+| `actor_user_id` | 操作使用者，`actor_type = 'user'` 時關聯 `users.id` |
+| `action` | 操作代碼 |
+| `resource_type` | 被操作資源類型 |
+| `resource_id` | 被操作資源的內部 `BIGINT id`，可為 `NULL` |
+| `resource_public_id` | 被操作資源的對外 UUID，僅適用有 `public_id` 的資源，可為 `NULL` |
+| `metadata` | 不敏感的結構化補充資料，使用 `JSONB` |
+| `ip_address` | 使用者請求來源 IP，系統背景任務可為 `NULL` |
+| `user_agent` | 使用者瀏覽器資訊，系統背景任務可為 `NULL` |
+| `created_at` | 建立時間 |
+
+`actor_type` 預計值：
+
+- `user`：登入使用者透過 API 操作。
+- `system`：系統背景任務。
+- `maintenance`：伺服器維運指令。
+
+資料規則：
+
+- `actor_type = 'user'` 時，`actor_user_id` 必須有值。
+- `actor_type IN ('system', 'maintenance')` 時，`actor_user_id` 必須為 `NULL`。
+- `ip_address` 與 `user_agent` 必須同時存在或同時為 `NULL`。
+- `metadata` 不得保存密碼、原始 token、token hash、session token、CSRF token、附件內容、簽名內容、完整 storage key、SQL error 原文或 stack trace。
+- `audit_logs` 為不可變稽核紀錄，沒有 `updated_at`，不掛 `set_updated_at()` Trigger。
+- 第一版只允許管理員查詢，不提供修改或刪除 API。
+
+`action`、`resource_type`、必記錄事件、metadata 規則與查詢權限請參考 [通用系統稽核紀錄](audit-logs.md)。
 
 ## 指導老師 `advisors`
 
@@ -514,7 +581,7 @@ UNIQUE (id, application_id);
 
 第一版附件與申請同時送出，不另外保存 `uploaded_at`；`created_at` 即代表附件紀錄建立並被納入該版本的時間。
 
-附件實體檔案放在私有儲存空間，資料庫只保存 `storage_key`。檔案必須經過登入及權限驗證後才能下載。
+附件實體檔案放在私有儲存空間，資料庫只保存 `storage_key`。檔案必須經過登入及權限驗證後才能下載。第一版使用伺服器本機私有目錄，完整 storage key、驗證、讀取與備份規則請參考 [私有檔案儲存設計](file-storage.md)。
 
 補件版本處理：
 
@@ -561,6 +628,7 @@ UNIQUE (id, application_id);
 - 每個檔案最多 `5 MB`。
 - 上傳時必須同時檢查副檔名、MIME type 與實際檔案內容。
 - 儲存時使用 UUID 重新命名，不直接使用原始檔名作為儲存路徑。
+- `storage_key` 由後端產生，不接受前端指定，且 API response 不回傳 `storage_key`。
 
 各申請類型最低附件要求：
 
@@ -682,14 +750,16 @@ UNIQUE (id, application_id);
   },
   "participants": [
     {
-      "classNumber": "string",
+      "academicYear": "string",
+      "grade": "number",
+      "classNumber": "number",
       "studentNumber": "string",
       "studentName": "string",
-      "requestedPoints": "number",
+      "requestedPoints": "string",
       "isApplicant": "boolean"
     }
   ],
-  "requestedTotalPoints": "number"
+  "requestedTotalPoints": "string"
 }
 ```
 
@@ -755,6 +825,8 @@ UNIQUE (id, application_id);
 - `invalidated_at` 與 `invalidated_reason` 必須同時為 `NULL` 或同時非 `NULL`，由 `CHECK` 保證。
 - 簽名板固定輸出 PNG，後端必須驗證實際檔案格式，並使用 `.png` 儲存。
 - 簽名圖片屬於敏感資料，不應以公開靜態網址提供，必須透過權限驗證後存取。
+- 第一版簽名檔案最大 `1 MB`，建議最大尺寸 `1600 x 800` pixels。
+- `signature_storage_key` 由後端產生，不接受前端指定，且 API response 不回傳 `signature_storage_key`。
 
 每個版本最多只能有一筆有效簽名，透過 partial unique index 限制：
 
@@ -770,7 +842,7 @@ WHERE invalidated_at IS NULL;
 signatures/applications/100/version-2/550e8400.png
 ```
 
-後端會根據 Storage Key 從私有本機目錄、S3、MinIO 或其他物件儲存空間取得簽名檔案。
+後端會根據 Storage Key 從私有本機目錄取得簽名檔案；未來可透過 storage adapter 替換為 S3、MinIO 或其他物件儲存空間。完整規則請參考 [私有檔案儲存設計](file-storage.md)。
 
 ## 競賽點數規則 `competition_point_rules`
 
@@ -989,7 +1061,7 @@ signatures/applications/100/version-2/550e8400.png
 - 一筆 `student_point_transactions` 紀錄最多只能由一筆 change_request 建立，由 `created_transaction_id` 的 partial unique index 保證。
 - 核准或拒絕後不可修改紀錄內容。
 - `requested_by_user_id` 應為承辦人、`reviewed_by_user_id` 應為管理員，由 Service 依 `users.role` 驗證；資料庫層不加跨表 CHECK。
-- 本表不保存 `ip_address` 與 `user_agent`；詳細稽核依賴規劃中的 `audit_logs` 表（見 [待決策項目](open-decisions.md#4-通用系統稽核紀錄)）。
+- 本表不保存 `ip_address` 與 `user_agent`；詳細稽核依賴 [通用系統稽核紀錄](audit-logs.md) 中的 `audit_logs`。
 - 必須掛上共用 `set_updated_at()` Trigger（`status` 從 `pending` 變更時會 UPDATE）。
 
 `adjustment` 與 `reversal` 的數值上限（如異動後不得 < 0、reversal 必須等於原始相反數）由 Service 驗證，詳見 [點數系統 - 學生點數異動申請](point-system.md#學生點數異動申請-student_point_change_requests)。
