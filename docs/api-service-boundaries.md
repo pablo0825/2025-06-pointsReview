@@ -123,6 +123,7 @@ Controller 不直接組 SQL，不直接處理 Transaction。Repository 不讀取
 | `PATCH` | `/admin/users/:userId` | `users.update` | 更新使用者基本資料 | `UserAdminService.updateUser` | 是 |
 | `POST` | `/admin/users/:userId/activate` | `users.activate` | 啟用帳號 | `UserAdminService.activateUser` | 是 |
 | `POST` | `/admin/users/:userId/deactivate` | `users.deactivate` | 停用帳號 | `UserAdminService.deactivateUser` | 是 |
+| `POST` | `/admin/users/:userId/transfer-admin` | `users.transfer_admin` | 將管理員移交給已完成密碼設定的新管理員 | `UserAdminService.transferAdmin` | 是 |
 | `POST` | `/admin/users/:userId/resend-activation` | `users.activation.resend` | 重寄啟用信 | `UserAdminService.resendActivation` | 是 |
 | `POST` | `/admin/users/:userId/send-password-reset` | `users.password_reset.send` | 寄送密碼重設信 | `UserAdminService.sendPasswordReset` | 是 |
 | `GET` | `/admin/advisors` | `advisors.list` | 指導老師列表 | `AdvisorAdminService.listAdvisors` | 否 |

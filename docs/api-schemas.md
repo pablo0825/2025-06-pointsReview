@@ -747,6 +747,16 @@ Request：
 }
 ```
 
+`POST /admin/users/:userId/transfer-admin` request：
+
+```json
+{
+  "reason": "管理員職務移交。"
+}
+```
+
+`:userId` 必須是 `role = "admin"`、已完成密碼設定且尚未啟用的新管理員帳號。移交成功後，舊管理員停用、新管理員啟用，並撤銷舊管理員既有 session。
+
 ### Advisors
 
 `POST /admin/advisors` request：

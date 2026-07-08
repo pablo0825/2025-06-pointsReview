@@ -315,11 +315,11 @@ Transaction 內步驟：
 
 1. 鎖定舊管理員與新管理員 `users` 資料列。
 2. 驗證舊管理員目前啟用。
-3. 驗證新管理員已完成必要帳號設定或已建立啟用 token。
+3. 驗證新管理員 `role = 'admin'`、`activated_at IS NOT NULL`、`is_active = FALSE`，且已完成密碼設定。
 4. 停用舊管理員。
 5. 啟用新管理員。
 6. 撤銷舊管理員 session/token（實作依登入方案）。
-7. 建立通用稽核紀錄。
+7. 建立 `admin.transferred` 通用稽核紀錄。
 
 ## 點數規則版本切換
 

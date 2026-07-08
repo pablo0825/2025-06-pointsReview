@@ -85,7 +85,8 @@ Authentication Middleware 每次驗證都必須檢查：
 3. 資料庫只保存 SHA-256 token hash 與 `activation_token_expires_at`。
 4. Email 寄出原始 token 連結。
 5. 使用者開啟連結並設定密碼。
-6. 成功後寫入 `password_hash`、`activated_at`，清除 activation token hash 與到期時間，並將 `is_active` 設為 `TRUE`。
+6. 成功後寫入 `password_hash`、`activated_at`，清除 activation token hash 與到期時間。
+7. 一般帳號將 `is_active` 設為 `TRUE`；若是管理員移交候選帳號，且系統已存在啟用中的管理員，帳號維持 `is_active = FALSE`，等待管理員移交流程啟用。
 
 啟用 token 有效期限建議為 `24` 小時。
 
