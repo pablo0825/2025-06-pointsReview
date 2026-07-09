@@ -7,9 +7,12 @@
 - 資料庫使用 PostgreSQL，應用程式透過 `pg` 存取。
 - 第一版正式環境使用 Redis 作為 rate limit store；local development 與單元測試可使用 in-memory store。
 - 第一版可使用 frontend、backend 分離容器，前方由 reverse proxy 對外提供同一個 HTTPS origin，例如 `/` 轉發 frontend、`/api` 轉發 backend。
+- 第一版可使用 Docker Compose 管理 frontend、backend、PostgreSQL、Redis 與 reverse proxy；PostgreSQL、Redis 與私有檔案目錄必須使用 persistent volume 或受控資料目錄，container 本身不得視為資料保存位置。
 - Controller 只處理 HTTP 輸入輸出；Service 執行業務規則與 Transaction；Repository 集中管理 SQL。
 - 寄信失敗重試與尚未處理提醒是不同流程。
 - 敏感附件與簽名第一版使用伺服器本機私有目錄，透過權限驗證 API 存取。
+- 第一版備份復原目標為 RPO `24` 小時、RTO `24` 小時；PostgreSQL 與私有檔案目錄必須每日加密備份，且備份不得只保存在正式主機本機。
+- Redis 只保存 rate limit、登入失敗計數等短期狀態；第一版不作為長期資料備份來源。
 - 最終審核寫入使用短時間 PostgreSQL Transaction 與 `SELECT ... FOR UPDATE` 防止重複處理。
 - 通用系統稽核紀錄使用 `audit_logs`，與主要業務操作在同一個 Transaction 中寫入。
 - 點數規則採不可覆蓋的版本化設計，以首次送件時間決定適用規則。

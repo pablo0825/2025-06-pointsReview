@@ -359,7 +359,7 @@ Email provider 在測試中使用 fake adapter，不寄真信。
 - 完整 browser E2E。
 - Email HTML 視覺 snapshot。
 - 大量資料壓力測試。
-- 備份復原自動化演練。
+- 備份復原自動化演練。正式上線前仍需依 [私有檔案儲存設計](file-storage.md#備份與復原) 執行至少一次手動復原演練。
 
 這些項目可在前端與部署環境穩定後補上。
 
