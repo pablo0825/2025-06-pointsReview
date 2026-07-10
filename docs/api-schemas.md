@@ -796,6 +796,60 @@ Request：
 }
 ```
 
+### Email Tasks
+
+`GET /admin/email-tasks` query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `status` | string | 第一版主要使用 `failed` |
+| `template` | string | 可省略 |
+| `createdFrom` | string | ISO 8601，可省略 |
+| `createdTo` | string | ISO 8601，可省略 |
+| `page` | number | 預設 `1` |
+| `pageSize` | number | 預設 `20`，最大 `100` |
+
+`GET /admin/email-tasks/:emailTaskId` response：
+
+```json
+{
+  "data": {
+    "id": 500,
+    "status": "failed",
+    "template": "advisor_signature_request",
+    "recipientEmail": "teacher@example.edu",
+    "attemptCount": 5,
+    "maxAttempts": 5,
+    "lastError": "provider permanent bounce",
+    "scheduledAt": "2026-07-05T10:20:30.000+08:00",
+    "sentAt": null,
+    "createdAt": "2026-07-05T10:20:30.000+08:00"
+  }
+}
+```
+
+`POST /admin/email-tasks/:emailTaskId/retry` request：
+
+```json
+{
+  "reason": "確認收件人信箱後手動重寄。"
+}
+```
+
+Response：
+
+```json
+{
+  "data": {
+    "newEmailTaskId": 801,
+    "retryOfEmailTaskId": 500,
+    "status": "pending"
+  }
+}
+```
+
+只能 retry `failed` task。重寄不修改原本 failed task，而是建立新的 `email_tasks`，並在新 task 的 `templatePayload` 或 metadata 中記錄 `retryOfEmailTaskId`。
+
 ### Point Rules
 
 `GET /admin/point-rules` query：

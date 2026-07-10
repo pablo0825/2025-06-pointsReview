@@ -27,24 +27,24 @@
 
 ```text
 migrations/
-  001_init_extensions_and_functions.sql
-  002_create_users.sql
-  003_create_user_sessions.sql
-  004_create_audit_logs.sql
-  005_create_advisors.sql
-  006_create_point_applications.sql
-  007_create_email_tasks.sql
-  008_create_application_versions.sql
-  009_add_application_current_version_fk.sql
-  010_create_application_participants.sql
-  011_create_point_rule_tables.sql
-  012_create_application_type_detail_tables.sql
-  013_create_application_attachments.sql
-  014_create_application_review_actions.sql
-  015_create_advisor_signatures.sql
-  016_create_student_point_transactions.sql
-  017_create_student_point_change_requests.sql
-  018_create_student_points_summary_view.sql
+  202607110001_init_extensions_and_functions.sql
+  202607110002_create_users.sql
+  202607110003_create_user_sessions.sql
+  202607110004_create_audit_logs.sql
+  202607110005_create_advisors.sql
+  202607110006_create_point_applications.sql
+  202607110007_create_email_tasks.sql
+  202607110008_create_application_versions.sql
+  202607110009_add_application_current_version_fk.sql
+  202607110010_create_application_participants.sql
+  202607110011_create_point_rule_tables.sql
+  202607110012_create_application_type_detail_tables.sql
+  202607110013_create_application_attachments.sql
+  202607110014_create_application_review_actions.sql
+  202607110015_create_advisor_signatures.sql
+  202607110016_create_student_point_transactions.sql
+  202607110017_create_student_point_change_requests.sql
+  202607110018_create_student_points_summary_view.sql
 
 seeds/
   development/
@@ -58,7 +58,50 @@ seeds/
     README.md
 ```
 
-實際檔名可在實作時加上 timestamp，例如 `202607040001_create_users.sql`。若使用 timestamp，仍建議保留可讀名稱，避免只靠時間辨識內容。
+Migration 檔名採 `YYYYMMDDNNNN_description.sql`：
+
+- `YYYYMMDD`：建立日期。
+- `NNNN`：當日流水號。
+- `description`：可讀的 migration 用途。
+
+此格式比純序號更不容易在多人協作時撞檔名，也比毫秒 timestamp 更容易閱讀。Migration 仍依檔名排序執行。
+
+## `node-pg-migrate` 專案設定
+
+第一版建議設定：
+
+```text
+migration directory: migrations
+migration table: pgmigrations
+migration language: sql
+```
+
+說明：
+
+- `migrations/` 保存所有 schema migration 檔案。
+- `pgmigrations` 是 `node-pg-migrate` 在 PostgreSQL 中使用的 migration 執行紀錄表，用來判斷哪些 migration 已執行，避免重複套用。
+- Migration 檔案使用 SQL，方便直接從 [資料庫 Schema](database-schema.md) 轉換。
+
+建議 npm scripts：
+
+```json
+{
+  "scripts": {
+    "migrate:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language sql",
+    "migrate:up": "node-pg-migrate up --migrations-dir migrations",
+    "migrate:down": "node-pg-migrate down --migrations-dir migrations",
+    "migrate:status": "node-pg-migrate status --migrations-dir migrations"
+  }
+}
+```
+
+Migration 執行時透過環境變數提供 PostgreSQL 連線資訊，不在 migration 檔案或程式碼中寫死帳號密碼。建議使用 `DATABASE_URL`：
+
+```text
+DATABASE_URL=postgres://user:password@localhost:5432/points_review
+```
+
+不同環境使用不同 `DATABASE_URL`，例如 local、test、production 各自指向自己的 PostgreSQL database。
 
 ## Migration 建立順序
 

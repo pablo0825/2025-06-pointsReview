@@ -77,6 +77,7 @@
 
 維運與背景任務：
 
+- `email_task.retry_requested`
 - `maintenance.admin_created`
 - `maintenance.admin_recovered`
 - `system.expired_applications_processed`

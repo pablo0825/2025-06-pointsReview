@@ -279,6 +279,8 @@ Service 層也要測資料範圍，不能只依賴 middleware 測試。
 - 可重試錯誤增加 `attempt_count` 並重新排程。
 - 達 `max_attempts` 後改為 `failed`。
 - failed application-related email 建立 `email_delivery_failed`，且不無限遞迴。
+- 管理員手動 retry failed email task 時建立新的 `email_tasks`，不覆蓋原 failed task，並建立 `email_task.retry_requested` audit log。
+- 非 `failed` 狀態的 email task 不可手動 retry。
 - stale processing task 可被 maintenance job 重置或標記 failed。
 - 老師簽核提醒只排程在 `advisor_confirmation_expires_at` 前。
 - 補件提醒只排程在 `edit_token_expires_at` 前。

@@ -22,6 +22,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - 補件提醒第一版排程為期限前 `24` 小時。
 - 寄送永久失敗時建立 `email_delivery_failed` 通知，並避免失敗通知無限遞迴。
 - Email 寄送失敗本身不應直接讓申請作廢。
+- 管理員第一版可查詢 failed email tasks，並可手動重寄；重寄會建立新的 `email_tasks`，不覆蓋原 failed task。
 - `advisor_confirmation_expires_at` 是指導老師簽核最後期限；提醒信必須在期限前寄送，逾期後不再自動寄送簽核連結。
 
 仍需實作時確認：
@@ -29,7 +30,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - Email provider，例如 SMTP、SendGrid、Mailgun 或學校信件服務。
 - 寄件者名稱、reply-to 與 provider message id 是否保存。
 - Email template 實際 subject 與 HTML/text 內容。
-- 管理後台是否提供 failed email tasks 列表與手動重寄。
+- 管理後台 failed email tasks 列表欄位、操作文案與手動重寄確認流程。
 
 ### 2. 通知失敗與申請作廢政策
 
@@ -38,7 +39,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 目前已確認：
 
 - 系統應區分「使用者收到通知但未處理」與「系統無法成功寄送通知」。
-- Email 永久失敗時，通知承辦人處理，不應直接將申請作廢。
+- Email 永久失敗時，通知管理員處理，不應直接將申請作廢。
 - Email 失敗不會自動延長 `advisor_confirmation_expires_at` 或 `edit_token_expires_at`。
 - 已正常通知但逾期未處理的申請，作廢後不可恢復。
 - 指導老師逾期未簽核時，系統將申請設為 `rejected`，寫入 `advisor_confirmation_expired` 審核操作紀錄，並寄送作廢通知給申請人。
@@ -62,11 +63,12 @@ Migration 與 Seed 初版方案已整理於 [Migration 與 Seed 方案](migratio
 - 固定代碼如 `advisors.title_code`、`grade` 與 `class_number` 第一版不建立 seed table，由程式常數或 enum 對照表維護。
 - 初始管理員不寫入 schema migration，改由受控維運指令建立。
 - 正式環境以 forward migration 修正為主，不依賴自動 down migration 回滾。
+- Migration 檔名採 `YYYYMMDDNNNN_description.sql`，例如 `202607110001_create_users.sql`。
+- Migration 目錄為 `migrations/`，migration table 使用 `node-pg-migrate` 預設 `pgmigrations`，migration language 使用 SQL。
+- Migration npm scripts 需提供 create、up、down 與 status；資料庫連線透過 `DATABASE_URL` 環境變數提供。
 
 仍需實作時確認：
 
-- 實際 migration 檔名採純序號或 timestamp。
-- `node-pg-migrate` 的專案設定、npm scripts 與 migration table 名稱。
 - 初始點數規則 seed 的實際資料內容。
 - 開發與測試環境 seed 的資料量與展示案例。
 

@@ -147,8 +147,11 @@ Controller 不直接組 SQL，不直接處理 Transaction。Repository 不讀取
 | `GET` | `/admin/student-point-transactions` | `student_point_transactions.read` | 學生點數流水帳查詢 | `StudentPointTransactionService.listTransactions` | 否 |
 | `GET` | `/admin/audit-logs` | `audit_logs.read` | 通用系統稽核紀錄列表 | `AuditLogService.listAuditLogs` | 否 |
 | `GET` | `/admin/audit-logs/:auditLogId` | `audit_logs.read` | 通用系統稽核紀錄詳情 | `AuditLogService.getAuditLog` | 否 |
+| `GET` | `/admin/email-tasks` | `email_tasks.read` | Email 任務列表，第一版主要用於查看 failed tasks | `EmailTaskAdminService.listEmailTasks` | 否 |
+| `GET` | `/admin/email-tasks/:emailTaskId` | `email_tasks.read` | Email 任務詳情 | `EmailTaskAdminService.getEmailTask` | 否 |
+| `POST` | `/admin/email-tasks/:emailTaskId/retry` | `email_tasks.retry` | 手動重寄 failed email task，建立新的 email task | `EmailTaskAdminService.retryFailedTask` | 是 |
 
-管理員異動使用者、老師、主任與點數規則時，Service 應依 [通用系統稽核紀錄](audit-logs.md) 建立 `audit_logs`。管理員讀取附件、簽名等敏感檔案時，也應建立對應查看紀錄。
+管理員異動使用者、老師、主任、點數規則與手動重寄 failed email task 時，Service 應依 [通用系統稽核紀錄](audit-logs.md) 建立 `audit_logs`。管理員讀取附件、簽名等敏感檔案時，也應建立對應查看紀錄。
 
 ## 私有檔案 API
 
