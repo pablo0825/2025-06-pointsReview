@@ -159,7 +159,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `point_applications.current_version_id` 循環外鍵
   - [x] `application_participants`
   - [x] 四張點數規則表
-  - [ ] 四張申請類型專屬表
+  - [x] 四張申請類型專屬表
   - [ ] `application_attachments`
   - [ ] `application_review_actions`
   - [ ] `advisor_signatures`
