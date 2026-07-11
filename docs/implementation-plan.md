@@ -148,8 +148,8 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 依 [Migration 與 Seed 方案](migration-plan.md) 建立 migration：
   - [x] extensions 與 `set_updated_at()` trigger function
   - [x] `users`
-  - [ ] `user_sessions`
-  - [ ] `audit_logs`
+  - [x] `user_sessions`
+  - [x] `audit_logs`
   - [ ] `advisors`
   - [ ] `application_type_participant_rules`
   - [ ] `application_instructions`
