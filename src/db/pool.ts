@@ -1,7 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import { env } from "../config/env";
-
-export type DatabaseClient = Pick<Pool | PoolClient, "query">;
+import type { DatabaseClient } from "./types";
 
 export const pool = new Pool({
   connectionString: env.databaseUrl,
@@ -14,3 +13,5 @@ pool.on("error", (error) => {
 export async function closePool(): Promise<void> {
   await pool.end();
 }
+
+export type { DatabaseClient };

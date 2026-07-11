@@ -183,7 +183,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 建立 PostgreSQL pool module。
 - [x] 不建立全域 query helper；Repository 統一接收 `DatabaseClient`。
 - [x] 建立 transaction helper。
-- [x] 建立 Repository function 接收一般 client 或 transaction client 的慣例。
+- [x] 建立 Repository function 接收一般 client 或 transaction client 的慣例，並以 `UserRepository` 作為最小範例。
 - [ ] 建立統一錯誤格式：
   - [ ] `{ code, message }`
   - [ ] Zod error `fields`
