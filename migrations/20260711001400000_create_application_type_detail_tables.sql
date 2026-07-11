@@ -1,5 +1,6 @@
 -- Up Migration
 
+-- Competition application details: competition-specific submitted and approved fields.
 CREATE TABLE competition_application_details (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   application_id BIGINT NOT NULL,
@@ -90,6 +91,7 @@ BEFORE UPDATE ON competition_application_details
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- Project participation details: project metadata, total salary, and calculated points.
 CREATE TABLE project_participation_details (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   application_id BIGINT NOT NULL,
@@ -125,6 +127,7 @@ BEFORE UPDATE ON project_participation_details
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- Project participation salary items: monthly salary breakdown for a project application.
 CREATE TABLE project_participation_salary_items (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   project_participation_detail_id BIGINT NOT NULL,
@@ -153,6 +156,7 @@ BEFORE UPDATE ON project_participation_salary_items
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- Certificate application details: certificate metadata and applied certificate rule.
 CREATE TABLE certificate_application_details (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   application_id BIGINT NOT NULL,
@@ -181,6 +185,7 @@ BEFORE UPDATE ON certificate_application_details
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- External exhibition details: exhibition metadata and applied exhibition rule.
 CREATE TABLE external_exhibition_details (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   application_id BIGINT NOT NULL,
