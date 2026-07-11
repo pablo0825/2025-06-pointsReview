@@ -14,7 +14,11 @@ function readMigrationFiles() {
     .readdirSync(migrationsDir)
     .filter((fileName) => !fileName.startsWith("."))
     .filter((fileName) => /\.(js|ts|sql)$/.test(fileName))
-    .sort();
+    .map((fileName) => ({
+      fileName,
+      migrationName: path.parse(fileName).name,
+    }))
+    .sort((a, b) => a.fileName.localeCompare(b.fileName));
 }
 
 async function readAppliedMigrations(client) {
@@ -46,7 +50,9 @@ async function main() {
   try {
     const appliedMigrations = await readAppliedMigrations(client);
     const appliedNames = new Set(appliedMigrations.map((migration) => migration.name));
-    const pendingMigrations = migrationFiles.filter((fileName) => !appliedNames.has(fileName));
+    const pendingMigrations = migrationFiles.filter(
+      (migration) => !appliedNames.has(migration.migrationName),
+    );
 
     console.log(`Migration files: ${migrationFiles.length}`);
     console.log(`Applied migrations: ${appliedMigrations.length}`);
@@ -55,7 +61,7 @@ async function main() {
     if (pendingMigrations.length > 0) {
       console.log("");
       console.log("Pending:");
-      pendingMigrations.forEach((fileName) => console.log(`- ${fileName}`));
+      pendingMigrations.forEach((migration) => console.log(`- ${migration.fileName}`));
     }
   } finally {
     await client.end();

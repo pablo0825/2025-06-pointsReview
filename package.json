@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate:create": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate create -m migrations",
+    "migrate:create": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate create -m migrations --migration-file-language sql --migration-filename-format utc",
     "migrate:up": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate up -m migrations",
     "migrate:down": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate down -m migrations",
     "migrate:status": "node -r dotenv/config scripts/migrate-status.js"

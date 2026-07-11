@@ -27,26 +27,26 @@
 
 ```text
 migrations/
-  202607110001_init_extensions_and_functions.sql
-  202607110002_create_users.sql
-  202607110003_create_user_sessions.sql
-  202607110004_create_audit_logs.sql
-  202607110005_create_advisors.sql
-  202607110006_create_application_type_participant_rules.sql
-  202607110007_create_application_instructions.sql
-  202607110008_create_point_applications.sql
-  202607110009_create_email_tasks.sql
-  202607110010_create_application_versions.sql
-  202607110011_add_application_current_version_fk.sql
-  202607110012_create_application_participants.sql
-  202607110013_create_point_rule_tables.sql
-  202607110014_create_application_type_detail_tables.sql
-  202607110015_create_application_attachments.sql
-  202607110016_create_application_review_actions.sql
-  202607110017_create_advisor_signatures.sql
-  202607110018_create_student_point_transactions.sql
-  202607110019_create_student_point_change_requests.sql
-  202607110020_create_student_points_summary_view.sql
+  20260711000100000_init_extensions_and_functions.sql
+  20260711000200000_create_users.sql
+  20260711000300000_create_user_sessions.sql
+  20260711000400000_create_audit_logs.sql
+  20260711000500000_create_advisors.sql
+  20260711000600000_create_application_type_participant_rules.sql
+  20260711000700000_create_application_instructions.sql
+  20260711000800000_create_point_applications.sql
+  20260711000900000_create_email_tasks.sql
+  20260711001000000_create_application_versions.sql
+  20260711001100000_add_application_current_version_fk.sql
+  20260711001200000_create_application_participants.sql
+  20260711001300000_create_point_rule_tables.sql
+  20260711001400000_create_application_type_detail_tables.sql
+  20260711001500000_create_application_attachments.sql
+  20260711001600000_create_application_review_actions.sql
+  20260711001700000_create_advisor_signatures.sql
+  20260711001800000_create_student_point_transactions.sql
+  20260711001900000_create_student_point_change_requests.sql
+  20260711002000000_create_student_points_summary_view.sql
 
 seeds/
   development/
@@ -60,13 +60,12 @@ seeds/
     README.md
 ```
 
-Migration 檔名採 `YYYYMMDDNNNN_description.sql`：
+Migration 檔名採 `YYYYMMDDHHMMSSmmm_description.sql`：
 
-- `YYYYMMDD`：建立日期。
-- `NNNN`：當日流水號。
+- `YYYYMMDDHHMMSSmmm`：17 位 UTC timestamp，符合 `node-pg-migrate --migration-filename-format utc` 的排序與 timestamp 解析規則。
 - `description`：可讀的 migration 用途。
 
-此格式比純序號更不容易在多人協作時撞檔名，也比毫秒 timestamp 更容易閱讀。Migration 仍依檔名排序執行。
+此格式由 `node-pg-migrate` 產生，能避免多人協作時撞檔名，也不會在執行時出現 timestamp 解析警告。Migration 仍依檔名排序執行。
 
 ## `node-pg-migrate` 專案設定
 
@@ -89,7 +88,7 @@ migration language: sql
 ```json
 {
   "scripts": {
-    "migrate:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language sql",
+    "migrate:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language sql --migration-filename-format utc",
     "migrate:up": "node-pg-migrate up --migrations-dir migrations",
     "migrate:down": "node-pg-migrate down --migrations-dir migrations",
     "migrate:status": "node-pg-migrate status --migrations-dir migrations"

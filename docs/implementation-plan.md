@@ -146,8 +146,8 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `migrate:down`
   - [x] `migrate:status`，由專案腳本讀取 migration 檔案並查詢 `pgmigrations` 狀態。
 - [ ] 依 [Migration 與 Seed 方案](migration-plan.md) 建立 migration：
-  - [ ] extensions 與 `set_updated_at()` trigger function
-  - [ ] `users`
+  - [x] extensions 與 `set_updated_at()` trigger function
+  - [x] `users`
   - [ ] `user_sessions`
   - [ ] `audit_logs`
   - [ ] `advisors`
