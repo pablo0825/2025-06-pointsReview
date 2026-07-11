@@ -6,6 +6,7 @@
 
 - Transaction 由 Service 開啟與提交，Controller 不直接控制 Transaction。
 - Repository function 必須可接收一般 database client 或 transaction client。
+- Repository 不直接 import 全域 `pool` 或全域 `query()` helper；Service 需明確傳入 `pool` 或 transaction client。
 - 進入 Transaction 前，先完成 Zod 格式驗證與基本欄位驗證。
 - 進入 Transaction 後，必須重新讀取目標資料並檢查最新狀態。
 - 最終寫入流程使用短時間 Transaction；不在使用者閱讀、填表或上傳前端暫存期間持有資料庫鎖。
