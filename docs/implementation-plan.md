@@ -137,14 +137,14 @@ REDIS_URL=redis://pr_b_redis:6379
 
 完成本段後，才開始進行下列 Phase 1 實作項目。
 
-- [ ] 安裝並設定 `pg`。
-- [ ] 安裝並設定 `node-pg-migrate`。
-- [ ] 建立 `migrations/` 目錄。
-- [ ] 建立 migration npm scripts：
-  - [ ] `migrate:create`
-  - [ ] `migrate:up`
-  - [ ] `migrate:down`
-  - [ ] `migrate:status`
+- [x] 安裝並設定 `pg`。
+- [x] 安裝並設定 `node-pg-migrate`。
+- [x] 建立 `migrations/` 目錄。
+- [x] 建立 migration npm scripts：
+  - [x] `migrate:create`
+  - [x] `migrate:up`
+  - [x] `migrate:down`
+  - [x] `migrate:status`，由專案腳本讀取 migration 檔案並查詢 `pgmigrations` 狀態。
 - [ ] 依 [Migration 與 Seed 方案](migration-plan.md) 建立 migration：
   - [ ] extensions 與 `set_updated_at()` trigger function
   - [ ] `users`
