@@ -1,5 +1,6 @@
 -- Up Migration
 
+-- Competition point rules: points by competition level and award.
 CREATE TABLE competition_point_rules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   competition_level VARCHAR(40) NOT NULL,
@@ -54,6 +55,7 @@ BEFORE UPDATE ON competition_point_rules
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- Project participation point rules: points calculated from salary units.
 CREATE TABLE project_point_rules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   salary_unit BIGINT NOT NULL,
@@ -92,6 +94,7 @@ BEFORE UPDATE ON project_point_rules
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- Certificate point rules: points per certificate and per-student cap.
 CREATE TABLE certificate_point_rules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   points_per_certificate NUMERIC(10, 2) NOT NULL,
@@ -122,6 +125,7 @@ BEFORE UPDATE ON certificate_point_rules
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
+-- External exhibition point rules: point range by exhibition type.
 CREATE TABLE exhibition_point_rules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   exhibition_type VARCHAR(40) NOT NULL,
