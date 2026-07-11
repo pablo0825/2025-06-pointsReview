@@ -150,14 +150,14 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `users`
   - [x] `user_sessions`
   - [x] `audit_logs`
-  - [ ] `advisors`
-  - [ ] `application_type_participant_rules`
-  - [ ] `application_instructions`
-  - [ ] `point_applications`
-  - [ ] `email_tasks`
-  - [ ] `application_versions`
-  - [ ] `point_applications.current_version_id` 循環外鍵
-  - [ ] `application_participants`
+  - [x] `advisors`
+  - [x] `application_type_participant_rules`
+  - [x] `application_instructions`
+  - [x] `point_applications`
+  - [x] `email_tasks`
+  - [x] `application_versions`
+  - [x] `point_applications.current_version_id` 循環外鍵
+  - [x] `application_participants`
   - [ ] 四張點數規則表
   - [ ] 四張申請類型專屬表
   - [ ] `application_attachments`
