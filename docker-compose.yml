@@ -1,13 +1,38 @@
-
-
 services:
   pr_backend:
     build: .
     ports:
-      - "5713:5713"
+      - "${PORT:-3001}:${PORT:-3001}"
     volumes:
       - .:/app
       - /app/node_modules
-    env_file: .env  # 👈 加這行：自動讀取 .env 檔案
+    env_file: .env
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgres://points_review:points_review_password@pr_b_postgres:5432/points_review
+      - REDIS_URL=redis://pr_b_redis:6379
+    depends_on:
+      - pr_b_postgres
+      - pr_b_redis
+
+  pr_b_postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: points_review
+      POSTGRES_USER: points_review
+      POSTGRES_PASSWORD: points_review_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pr_b_redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
