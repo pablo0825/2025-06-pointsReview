@@ -160,9 +160,9 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `application_participants`
   - [x] 四張點數規則表
   - [x] 四張申請類型專屬表
-  - [ ] `application_attachments`
-  - [ ] `application_review_actions`
-  - [ ] `advisor_signatures`
+  - [x] `application_attachments`
+  - [x] `application_review_actions`
+  - [x] `advisor_signatures`
   - [ ] `student_point_transactions`
   - [ ] `student_point_change_requests`
   - [ ] `student_points_summary` View
