@@ -168,6 +168,8 @@ Service integration tests 驗證業務規則與 Transaction side effect。
 - 補件 token 清除。
 - 狀態回到 `pending_advisor`。
 - 建立新版本老師簽核通知與提醒。
+- 延長補件期限只能在 `needs_revision` 且 token 未過期時執行。
+- 延長補件期限不重發 token，會更新 `edit_token_expires_at`、建立 `revision_extended` 審核紀錄與通知。
 
 ### 承辦人審核
 

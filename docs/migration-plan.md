@@ -32,19 +32,21 @@ migrations/
   202607110003_create_user_sessions.sql
   202607110004_create_audit_logs.sql
   202607110005_create_advisors.sql
-  202607110006_create_point_applications.sql
-  202607110007_create_email_tasks.sql
-  202607110008_create_application_versions.sql
-  202607110009_add_application_current_version_fk.sql
-  202607110010_create_application_participants.sql
-  202607110011_create_point_rule_tables.sql
-  202607110012_create_application_type_detail_tables.sql
-  202607110013_create_application_attachments.sql
-  202607110014_create_application_review_actions.sql
-  202607110015_create_advisor_signatures.sql
-  202607110016_create_student_point_transactions.sql
-  202607110017_create_student_point_change_requests.sql
-  202607110018_create_student_points_summary_view.sql
+  202607110006_create_application_type_participant_rules.sql
+  202607110007_create_application_instructions.sql
+  202607110008_create_point_applications.sql
+  202607110009_create_email_tasks.sql
+  202607110010_create_application_versions.sql
+  202607110011_add_application_current_version_fk.sql
+  202607110012_create_application_participants.sql
+  202607110013_create_point_rule_tables.sql
+  202607110014_create_application_type_detail_tables.sql
+  202607110015_create_application_attachments.sql
+  202607110016_create_application_review_actions.sql
+  202607110017_create_advisor_signatures.sql
+  202607110018_create_student_point_transactions.sql
+  202607110019_create_student_point_change_requests.sql
+  202607110020_create_student_points_summary_view.sql
 
 seeds/
   development/
@@ -109,28 +111,30 @@ Migration 必須遵守資料表外鍵與共用物件依賴順序。
 
 1. 啟用 PostgreSQL extension：
    - `gen_random_uuid()` 所需 extension。
-   - `btree_gist`，供點數規則 exclusion constraint 使用。
+   - `btree_gist`，供人數規則與點數規則 exclusion constraint 使用。
 2. 建立共用 `set_updated_at()` trigger function。
 3. 建立 `users`。
 4. 建立 `user_sessions`。
 5. 建立 `audit_logs`。
 6. 建立 `advisors`。
-7. 建立 `point_applications`，此階段先不建立 `current_version_id` 外鍵。
-8. 建立 `email_tasks`。
-9. 建立 `application_versions`。
-10. 透過 `ALTER TABLE` 建立：
+7. 建立 `application_type_participant_rules`。
+8. 建立 `application_instructions`。
+9. 建立 `point_applications`，此階段先不建立 `current_version_id` 外鍵。
+10. 建立 `email_tasks`。
+11. 建立 `application_versions`。
+12. 透過 `ALTER TABLE` 建立：
    - `application_versions_id_application_unique`
    - `point_applications_current_version_fk`
-11. 建立 `application_participants`。
-12. 建立四張點數規則表。
-13. 建立四張申請類型專屬資料表。
-14. 建立 `application_attachments`。
-15. 建立 `application_review_actions`。
-16. 建立 `advisor_signatures`。
-17. 建立 `student_point_transactions`。
-18. 建立 `student_point_change_requests`。
-19. 建立 `student_points_summary` View。
-20. 為所有具有 `updated_at` 的資料表掛上 `set_updated_at()` trigger。
+13. 建立 `application_participants`。
+14. 建立四張點數規則表。
+15. 建立四張申請類型專屬資料表。
+16. 建立 `application_attachments`。
+17. 建立 `application_review_actions`。
+18. 建立 `advisor_signatures`。
+19. 建立 `student_point_transactions`。
+20. 建立 `student_point_change_requests`。
+21. 建立 `student_points_summary` View。
+22. 為所有具有 `updated_at` 的資料表掛上 `set_updated_at()` trigger。
 
 循環外鍵不得在 `point_applications` 的 `CREATE TABLE` 階段建立，必須等 `application_versions` 建立後再用 `ALTER TABLE` 補上。
 

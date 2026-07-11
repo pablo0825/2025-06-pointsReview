@@ -125,16 +125,46 @@ FLOOR(total_salary / salary_unit) * points_per_unit
 - 建立申請時保存 `exhibition_point_rule_id`，用來記錄該申請使用的歷史規則。
 - 管理員可透過規則管理 API 建立未來生效的新規則，但不可覆蓋舊規則。
 
-## 點數規則版本管理共用政策
+## 申請類型人數規則 `application_type_participant_rules`
+
+定義各申請類型允許的參與者人數上下限。這是申請規則，不是點數換算規則；點數計算仍由各點數規則表負責。資料表欄位與 Constraint 請參考 [資料模型 - application_type_participant_rules](data-model.md#申請類型人數規則-application_type_participant_rules)。
+
+目前規則：
+
+| 申請類型 | 最少人數 | 最多人數 |
+| --- | ---: | ---: |
+| `competition` | 1 | 10 |
+| `project_participation` | 1 | 1 |
+| `certificate` | 1 | 1 |
+| `external_exhibition` | 1 | 15 |
+
+送件時，API Service 層依 `application_type` 與首次送件時間查詢有效的 `application_type_participant_rules`，驗證申請參與者人數：
+
+```text
+minimum_participants <= participants.length <= maximum_participants
+```
+
+建立申請時，`point_applications.application_participant_rule_id` 保存實際使用的人數規則。後續補件、重新簽名與核准都沿用原本規則，即使期間已有新的人數規則生效，也不影響已提交申請。
+
+前端可依目前有效規則提供即時人數提示；Zod 只驗證至少一人與合理技術上限，避免 request 過大。最終可信驗證由 Service 在 Transaction 內查詢 `application_type_participant_rules` 後完成。資料庫不使用 Trigger 統計同一 `application_id` 底下的 `application_participants` 筆數。
+
+## 申請說明內容 `application_instructions`
+
+`application_instructions` 保存前台說明文字，例如年度辦法、附件提醒與常見問題。這張表不作為點數、人數或審核驗證依據，也不與申請保存關聯；正式規則數值仍以各規則表為準。
+
+前端查詢說明內容時，預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的資料。管理員後台可查詢所有歷史說明。`content` 可保存 Markdown，前端渲染時必須做 XSS 防護。
+
+## 規則版本管理共用政策
 
 以下政策適用於：
 
+- `application_type_participant_rules`
 - `competition_point_rules`
 - `project_point_rules`
 - `certificate_point_rules`
 - `exhibition_point_rules`
 
-四張規則表皆**不包含 `is_active` 欄位**。規則的生命週期完全由 `effective_from` 與 `effective_to` 控制，避免出現 `is_active = TRUE` 但 `effective_to` 已過期之類的語意衝突。需要立即停用某條規則時，將其 `effective_to` 更新為今日日期即可（在同一 Transaction 中視需要建立新規則）。
+上述規則表皆**不包含 `is_active` 欄位**。規則的生命週期完全由 `effective_from` 與 `effective_to` 控制，避免出現 `is_active = TRUE` 但 `effective_to` 已過期之類的語意衝突。需要立即停用某條規則時，將其 `effective_to` 更新為今日日期即可（在同一 Transaction 中視需要建立新規則）。
 
 規則適用日期以 `point_applications.submitted_at` 首次送件時間為準，不使用活動日期、補件日期或核准日期。
 
@@ -154,7 +184,7 @@ WHERE daterange(effective_from, effective_to, '[)')
       @> (submitted_at AT TIME ZONE 'Asia/Taipei')::date
 ```
 
-建立申請後，專屬申請資料會保存適用的規則 ID。後續補件、重新簽名與核准都沿用原本規則，即使期間已有新規則生效，也不影響已提交申請。
+建立申請後，`point_applications` 會保存適用的人數規則 ID，各類型專屬申請資料會保存適用的點數規則 ID。後續補件、重新簽名與核准都沿用原本規則，即使期間已有新規則生效，也不影響已提交申請。
 
 管理員調整規則時：
 
@@ -179,6 +209,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 | 規則表 | 不可重疊的規則單位 |
 | --- | --- |
+| `application_type_participant_rules` | 相同 `application_type` |
 | `competition_point_rules` | 相同 `competition_level` 與 `award` |
 | `project_point_rules` | 整張表共用同一種規則 |
 | `certificate_point_rules` | 整張表共用同一種規則 |
@@ -187,6 +218,13 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 資料庫限制：
 
 ```sql
+ALTER TABLE application_type_participant_rules
+ADD CONSTRAINT application_type_participant_rules_no_overlap
+EXCLUDE USING gist (
+  application_type WITH =,
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+
 ALTER TABLE competition_point_rules
 ADD CONSTRAINT competition_point_rules_no_overlap
 EXCLUDE USING gist (

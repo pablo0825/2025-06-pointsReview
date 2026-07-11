@@ -1,6 +1,6 @@
 ﻿# API Endpoint 與 Service 邊界
 
-本文件定義第一版 API 分組、權限、Service 責任與 Repository 邊界。Request / response 欄位請參考 [API Request / Response Schema](api-schemas.md)，資料表欄位請參考 [資料模型](data-model.md)，權限代碼請參考 [帳號與權限](authorization.md)，流程狀態請參考 [產品流程](product-workflows.md)。
+本文件定義第一版 API 分組、權限、Service 責任與 Repository 邊界。Request / response 欄位請參考 [API Request / Response Schema](api-schemas.md)，Zod 驗證責任請參考 [Zod 驗證規格](zod-validation.md)，資料表欄位請參考 [資料模型](data-model.md)，權限代碼請參考 [帳號與權限](authorization.md)，流程狀態請參考 [產品流程](product-workflows.md)。
 
 ## 分層原則
 

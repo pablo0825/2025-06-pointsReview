@@ -43,7 +43,8 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - Email 失敗不會自動延長 `advisor_confirmation_expires_at` 或 `edit_token_expires_at`。
 - 已正常通知但逾期未處理的申請，作廢後不可恢復。
 - 指導老師逾期未簽核時，系統將申請設為 `rejected`，寫入 `advisor_confirmation_expired` 審核操作紀錄，並寄送作廢通知給申請人。
-- 若需延長指導老師簽核期限，應由承辦人或管理員明確操作；第一版可先不實作期限延長。
+- 第一版支援承辦人延長補件期限；只能延長仍在 `needs_revision` 且補件 Token 有效的申請，不可復原已作廢申請。
+- 第一版不實作指導老師簽核期限延長；若未來需要，應另行定義權限、通知與審核紀錄。
 
 仍需實作時確認：
 
@@ -104,14 +105,13 @@ Transaction 與併發控制初版已整理於 [Transaction 與併發控制](tran
 - Repository function 必須可接收一般 database client 或 transaction client。
 - 申請狀態轉換與最終審核操作使用 `point_applications FOR UPDATE`。
 - Email tasks 與主流程狀態變更在同一個 Transaction 中建立，實際寄送由 worker 在 commit 後處理。
-- 證照累積上限第一版使用 PostgreSQL advisory transaction lock，以學生學號作為鎖定 key。
+- 證照累積上限第一版使用 PostgreSQL advisory transaction lock，以 `pg_advisory_xact_lock(hashtext('certificate-points:' || student_number)::bigint)` 作為鎖定 key。
 - 背景逾期作廢任務必須使用與人工操作相同的鎖定與狀態重驗策略。
+- 第一版不建立通用 `Idempotency-Key` 機制，先依狀態檢查、資料列鎖、unique constraint、token 清除與 `event_key` 處理重複提交。
 
 仍需實作時確認：
 
-- advisory lock key 目前使用 `certificate-points:` namespace；實作時需確認 hash function 與參數型別。
 - 各 Service 對資料庫 constraint error 的錯誤碼轉換。
-- 是否需要通用 idempotency key 機制；第一版先依 unique constraint 與 token 清除處理重複提交。
 
 ### 6. 登入、Session 與安全
 

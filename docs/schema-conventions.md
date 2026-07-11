@@ -157,7 +157,7 @@ ON UPDATE RESTRICT
 
 ## 驗證與資料庫限制策略
 
-系統採用分層驗證，先拒絕明顯錯誤的請求，再由 Service 與 PostgreSQL 保證業務規則及最終資料完整性：
+系統採用分層驗證，先拒絕明顯錯誤的請求，再由 Service 與 PostgreSQL 保證業務規則及最終資料完整性。Zod request schema 的詳細規格請參考 [Zod 驗證規格](zod-validation.md)：
 
 ```text
 HTTP Request
@@ -191,13 +191,14 @@ Zod 負責驗證：
 - 必填欄位、字串長度、Email、日期、UUID、點數與金額格式。
 - `applicationType` 對應的專屬表單內容。
 - 選擇 `other` 時必須填寫對應的 `*_other` 欄位。
-- 至少存在一位參與者、只能標記一位申請人，且申請人必須是參與者。
+- 參與者至少一人、只能標記一位申請人，且申請人必須是參與者；Zod 只設定合理技術上限避免 request 過大，正式人數上下限仍由 Service 重新查規則驗證。
 - Request 中參與者申請點數的加總與申請總點數一致。
 - 附件 metadata 與附件數量是否符合 Request Schema。
 
 Service 負責驗證：
 
 - 指導老師是否存在且啟用。
+- 申請使用的人數規則是否有效，且參與者人數是否符合 `minimum_participants` 與 `maximum_participants`。
 - 申請使用的點數規則是否有效。
 - 參與者點數是否符合適用規則。
 - 證照核准後的學生累積點數是否超過上限。
@@ -241,7 +242,7 @@ CHECK (
 - `student_point_transactions.points` 允許正數、負數或 `0`，不建立非負數 `CHECK`。
 - 狀態、角色、申請類型及固定選項第一版使用 `CHECK` 限制允許值，不使用 PostgreSQL Enum，方便規劃階段調整。
 
-`CHECK` 不負責跨資料列或跨資料表規則，例如參與者點數加總、每筆申請必須存在一位申請人、證照累積上限，以及規則有效日期不可重疊。
+`CHECK` 不負責跨資料列或跨資料表規則，例如參與者人數上下限、參與者點數加總、每筆申請必須存在一位申請人、證照累積上限，以及規則有效日期不可重疊。
 
 ### `UNIQUE` Constraint
 

@@ -10,6 +10,7 @@ erDiagram
     USERS ||--o{ USER_SESSIONS : "登入 Session"
     USERS ||--o{ AUDIT_LOGS : "執行管理操作"
     ADVISORS ||--o{ POINT_APPLICATIONS : "負責簽核"
+    APPLICATION_TYPE_PARTICIPANT_RULES ||--o{ POINT_APPLICATIONS : "使用人數規則"
     POINT_APPLICATIONS ||--o{ APPLICATION_PARTICIPANTS : "包含參與者"
     POINT_APPLICATIONS ||--o| COMPETITION_APPLICATION_DETAILS : "競賽專屬資料"
     COMPETITION_POINT_RULES ||--o{ COMPETITION_APPLICATION_DETAILS : "使用點數規則"
@@ -214,6 +215,66 @@ ON advisors (is_director)
 WHERE is_director = TRUE AND is_active = TRUE;
 ```
 
+## 申請類型人數規則 `application_type_participant_rules`
+
+保存各申請類型允許的參與者人數上下限與歷史版本。此表是申請規則，不是點數換算規則；點數計算仍由各點數規則表負責。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `application_type` | 申請類型 |
+| `minimum_participants` | 最少參與者人數，必須大於或等於 `1` |
+| `maximum_participants` | 最多參與者人數，必須大於或等於 `minimum_participants` |
+| `effective_from` | 規則生效日期 |
+| `effective_to` | 規則失效日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+目前規則：
+
+| 申請類型 | 最少人數 | 最多人數 |
+| --- | ---: | ---: |
+| `competition` | 1 | 10 |
+| `project_participation` | 1 | 1 |
+| `certificate` | 1 | 1 |
+| `external_exhibition` | 1 | 15 |
+
+資料規則：
+
+- 規則生命週期完全由 `effective_from` 與 `effective_to` 控制；**無 `is_active` 欄位**。
+- 採半開區間 `[effective_from, effective_to)`，詳見 [規則版本管理共用政策](point-system.md#規則版本管理共用政策)。
+- 同一 `application_type` 在重疊日期內不可存在多筆有效規則，由 `btree_gist` Exclusion Constraint 保證。
+- 已被申請使用的規則不可修改或刪除。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
+## 申請說明內容 `application_instructions`
+
+保存前台可顯示的申請說明、年度辦法、附件提醒與常見問題等文字內容。此表只提供申請人查詢與前端顯示，不作為審核依據，也不與 `point_applications` 或 `application_versions` 建立關聯。
+
+| 欄位 | 說明 |
+| --- | --- |
+| `id` | 主鍵 |
+| `application_type` | 申請類型 |
+| `section_key` | 說明區塊識別值，同一申請類型內必須唯一 |
+| `title` | 顯示標題，例如 `114年度競賽點數辦法` |
+| `content` | 說明內容，使用 `TEXT`，可保存 Markdown |
+| `display_order` | 前端顯示排序，數字越小越前面 |
+| `is_visible` | 是否在前台顯示 |
+| `effective_from` | 說明開始顯示日期 |
+| `effective_to` | 說明停止顯示日期，可為 `NULL` |
+| `created_at` | 建立時間 |
+| `updated_at` | 修改時間 |
+
+資料規則：
+
+- `application_instructions` 保存補充說明文字，不保存正式規則數值；人數、點數、累積上限等可驗證規則必須由正式規則表提供。
+- `content` 可保存 Markdown；前端渲染 Markdown 時必須做 XSS 防護。
+- 前台預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容。
+- 管理員後台可查看所有歷史說明，包含已過期或 `is_visible = FALSE` 的內容。
+- `section_key` 是穩定代碼；`title` 是顯示文字，可隨年度或文案調整。
+- 不建立 no-overlap constraint；同一申請類型允許同時顯示多份說明，例如年度辦法、附件說明與 FAQ。
+- 必須掛上共用 `set_updated_at()` Trigger。
+
 ## 點數申請 `point_applications`
 
 保存所有申請類型共用的核心資料。一筆資料代表一次完整的點數申請。
@@ -225,6 +286,7 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | `application_type` | 申請類型 |
 | `status` | 目前申請狀態 |
 | `advisor_id` | 關聯 `advisors.id` |
+| `application_participant_rule_id` | 首次送件時適用的人數規則，關聯 `application_type_participant_rules.id` |
 | `applicant_name` | 申請人姓名 |
 | `applicant_email` | 申請人通知 Email，必須為正規化後（trim + lowercase）格式 |
 | `applicant_phone` | 申請人聯絡電話 |
@@ -246,6 +308,8 @@ WHERE is_director = TRUE AND is_active = TRUE;
 `edit_token_hash` 與 `edit_token_expires_at` 必須同時為 `NULL` 或同時非 `NULL`，由 PostgreSQL `CHECK` constraint 保證。補件 Token 雜湊使用 `BYTEA`，與 `users` 的啟用與密碼重設 Token 相同處理方式，並建立非 `NULL` 值的 Partial Unique Index 防止 Token 撞號並加速查詢。
 
 `advisor_confirmation_expires_at` 是老師簽核的最後期限，不是提醒寄送時間。申請進入 `pending_advisor` 時必須寫入；老師簽名或拒絕前，Service 必須驗證尚未逾期。超過期限仍未簽核時，系統將申請設為 `rejected` 並寫入 `advisor_confirmation_expired` 審核操作紀錄。申請離開 `pending_advisor` 後不清空此欄位，保留原始簽核期限作為稽核資訊。
+
+`application_participant_rule_id` 保存首次送件時依 `application_type` 與 `submitted_at` 查到的人數規則。後續補件、重新簽名與核准都沿用原本規則，即使期間已有新的人數規則生效，也不影響已提交申請。資料庫使用複合外鍵確保該規則的 `application_type` 與申請本身一致。
 
 `applicant_email` 在寫入前必須移除前後空白並轉為小寫，但**不建立唯一索引**，因為同一位申請人可以重複建立多筆申請。
 
@@ -356,6 +420,7 @@ advisor-sign-expired:application-100:version-2
 申請人身分規則：
 
 - 每筆申請至少需要一位參與者，且必須剛好有一位 `is_applicant = TRUE` 的參與者。
+- 每筆申請的參與者人數必須符合 `point_applications.application_participant_rule_id` 指向的人數規則；跨資料列計數由 Service 在 Transaction 內驗證，資料庫層不建立 Trigger。
 - `is_applicant = TRUE` 的 `student_name` 必須與 `point_applications.applicant_name` 一致，由 Service 在 Transaction 內驗證，資料庫層不建立跨表 Trigger。
 - 使用 partial unique index 限制每筆申請最多只能有一位申請人；至少需要一位申請人的條件由 Service 與 Zod 驗證保證。
 
@@ -411,12 +476,14 @@ UNIQUE (id, application_id);
 | `competition_level_approved_other` | 承辦人最終認定為其他競賽等級時填寫，可為 `NULL` |
 | `competition_point_rule_id` | 送件時適用的競賽點數規則，關聯 `competition_point_rules.id` |
 | `competition_name` | 競賽名稱 |
-| `competition_category` | 競賽類別 |
+| `competition_category` | 競賽組別、類別或領域，例如遊戲設計組、動畫類 |
 | `award` | 獎項 |
 | `award_other` | 選擇其他獎項時填寫，可為 `NULL` |
 | `competition_date` | 競賽日期 |
 | `created_at` | 建立時間 |
 | `updated_at` | 修改時間 |
+
+`competition_category` 表示同一競賽中的比賽組別、類別或領域，不是點數規則使用的競賽等級；競賽等級由 `competition_level_requested` 與 `competition_level_approved` 保存。第一版競賽申請不保存主辦單位。
 
 競賽等級預計選項：
 
@@ -674,6 +741,7 @@ UNIQUE (id, application_id);
 | `advisor_approved` | 指導老師簽名同意申請 | 否 |
 | `advisor_rejected` | 指導老師拒絕申請 | 是 |
 | `revision_requested` | 承辦人要求申請人補件 | 是 |
+| `revision_extended` | 承辦人延長申請人補件期限 | 是 |
 | `resubmitted` | 申請人完成補件並重新提交 | 否 |
 | `reviewer_approved` | 承辦人核准申請（可能含調整） | 若 `metadata` 含調整則必填 |
 | `reviewer_rejected` | 承辦人拒絕申請 | 是 |
@@ -684,9 +752,9 @@ UNIQUE (id, application_id);
 
 資料規則：
 
-- 必填 `reason` 的 action：`advisor_rejected`、`revision_requested`、`reviewer_rejected`、`revision_expired`、`advisor_confirmation_expired`，由資料庫 `CHECK` 保證。
+- 必填 `reason` 的 action：`advisor_rejected`、`revision_requested`、`revision_extended`、`reviewer_rejected`、`revision_expired`、`advisor_confirmation_expired`，由資料庫 `CHECK` 保證。
 - `reviewer_approved` 若 `metadata` 含調整資料，`reason` 必填，由 Service 在 Transaction 內驗證。
-- `metadata` 可保存競賽等級、參與者點數及申請總點數的調整前後資料；無調整時為 `NULL`。
+- `metadata` 可保存競賽等級、參與者點數、申請總點數的調整前後資料，以及 `revision_extended` 的原補件期限與新補件期限；無調整或補充資料時為 `NULL`。
 - `actor_user_id` 與 `actor_type` 必須配對：`actor_type` 為 `advisor` 或 `reviewer` 時 `actor_user_id` 不可為 `NULL`；`actor_type` 為 `applicant` 或 `system` 時 `actor_user_id` 必須為 `NULL`，由資料庫 `CHECK` 保證。
 - `ip_address` 與 `user_agent` 在 `actor_type = 'system'` 時為 `NULL`（背景排程沒有 request 來源），其他 `actor_type` 必須非 `NULL`，由資料庫 `CHECK` 保證。
 - 申請人重新提交時，`actor_type` 為 `applicant`，`actor_user_id` 為 `NULL`，但仍須記錄瀏覽器 IP 與 UA。
@@ -885,7 +953,7 @@ signatures/applications/100/version-2/550e8400.png
 資料規則：
 
 - 規則生命週期完全由 `effective_from` 與 `effective_to` 控制；**無 `is_active` 欄位**。
-- 採半開區間 `[effective_from, effective_to)`，詳見 [點數規則版本管理共用政策](point-system.md#點數規則版本管理共用政策)。
+- 採半開區間 `[effective_from, effective_to)`，詳見 [規則版本管理共用政策](point-system.md#規則版本管理共用政策)。
 - 同一 `(competition_level, award)` 組合在重疊日期內不可存在多筆有效規則，由 `btree_gist` Exclusion Constraint 保證。
 - 已被申請使用的規則不可修改或刪除。
 - 必須掛上共用 `set_updated_at()` Trigger。

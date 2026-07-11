@@ -159,6 +159,23 @@ Transaction 內步驟：
 
 - 申請已被其他承辦人核准或拒絕：回傳 `application_status_conflict`。
 
+## 延長補件期限
+
+Service：`ReviewerApplicationService.extendRevision`
+
+Transaction 內步驟：
+
+1. 鎖定 `point_applications`。
+2. 驗證狀態仍為 `needs_revision`。
+3. 驗證 `edit_token_hash` 與 `edit_token_expires_at` 仍存在且尚未逾期。
+4. 驗證新的 `edit_token_expires_at` 晚於目前時間與原補件期限。
+5. 更新 `point_applications.edit_token_expires_at`。
+6. 建立 `revision_extended` 審核紀錄，`reason` 必填，`metadata` 保存原期限與新期限。
+7. 取消尚未寄出的舊 `revision_reminder`。
+8. 依新期限建立新的 `revision_reminder`，並建立 `revision_extended` 通知。
+
+延長期限不重新產生補件 Token。若申請已被背景任務作廢或被人工處理，取得鎖後狀態重驗會失敗並回傳 `application_status_conflict` 或 `revision_token_invalid`。
+
 ## 核准前調整
 
 Service：`ReviewerApplicationService.adjustBeforeApproval`
@@ -205,17 +222,19 @@ Transaction 內步驟：
 
 證照申請核准時，必須避免兩筆不同申請同時核准，導致同一學生證照點數超過上限。
 
-第一版建議採用 PostgreSQL advisory transaction lock，以學生學號建立鎖 key：
+第一版採用 PostgreSQL advisory transaction lock，以學生學號建立鎖 key：
 
 ```sql
-SELECT pg_advisory_xact_lock(hashtext('certificate-points:' || $studentNumber));
+SELECT pg_advisory_xact_lock(hashtext('certificate-points:' || $1)::bigint);
 ```
+
+其中 `$1` 為 `student_number`。`certificate-points:` 是證照點數鎖的 namespace，避免和其他 advisory lock 用途混淆。`hashtext(...)::bigint` 將字串 key 轉成 `pg_advisory_xact_lock` 可接受的數字 key。
 
 同一個核准 Transaction 中，對本次申請所有參與者學號依排序後順序取得 advisory lock，避免死鎖：
 
 1. 取出本次證照申請涉及的所有 `student_number`。
 2. 依字串排序。
-3. 逐一取得 `pg_advisory_xact_lock(hashtext('certificate-points:' || student_number))`。
+3. 逐一取得 `pg_advisory_xact_lock(hashtext('certificate-points:' || student_number)::bigint)`。
 4. 查詢該學生目前 `certificate` 類別累積點數。
 5. 驗證加上本次核准點數後不超過 `certificate_point_rules.maximum_points_per_student`。
 6. 建立 `student_point_transactions`。
@@ -355,12 +374,21 @@ FOR UPDATE;
 
 ## 冪等與重試
 
-第一版原則：
+Idempotency key 是由前端或外部 client 對寫入 API 提供的唯一鍵，用來表示「這是同一次操作的重試」。完整通用機制通常需要額外資料表保存 key、request hash、response cache、到期時間，以及同 key 不同 payload 的衝突處理。
 
+第一版不建立通用 `Idempotency-Key` 機制。原因：
+
+- 系統主要是表單與審核流程，不是金流或第三方公開 API。
+- 主要寫入流程已有狀態檢查、資料列鎖、unique constraint、token 清除與 `event_key` 防重複機制。
+- 通用 idempotency 會增加資料表、response cache、清理策略與錯誤處理複雜度。
+
+第一版依流程使用下列防重複機制：
+
+- 申請狀態轉換在 Transaction 內使用 `point_applications FOR UPDATE` 並重新檢查狀態，避免已處理申請再次處理。
 - Email task 使用 `event_key` unique constraint 防止重複建立同一通知。
-- 補件 token 重新提交成功後必須清除 token，避免重複提交。
+- 帳號啟用、密碼重設與補件 token 使用成功後必須清除 token hash，避免同一 token 重複使用。
 - 老師簽名以 `one_valid_signature_per_version` 防止同版本重複有效簽名。
 - 承辦人核准以 `one_award_per_participant` 防止重複點數 award。
 - 點數異動申請以 `one_pending_change_per_transaction` 防止同目標交易重複 pending 申請。
 
-若未來前端或外部系統需要安全重試寫入 API，可再新增 idempotency key 機制。
+若未來出現大量網路重試、離線表單、第三方 API 或需要安全重放 response 的寫入流程，再新增通用 idempotency key 機制。

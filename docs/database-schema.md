@@ -8,6 +8,8 @@
 - [x] `user_sessions`
 - [x] `audit_logs`
 - [x] `advisors`
+- [x] `application_type_participant_rules`
+- [x] `application_instructions`
 - [x] `point_applications`
 - [x] `email_tasks`
 - [x] `application_participants`
@@ -26,7 +28,7 @@
 以下物件會在實作 Migration 時建立：
 
 - `gen_random_uuid()` 所需擴充功能。
-- `btree_gist`，用於防止點數規則有效期間重疊。
+- `btree_gist`，用於防止點數與申請規則有效期間重疊。
 - 共用 `set_updated_at()` Trigger Function。
 
 詳細定義請參考 [Schema 設計規範](schema-conventions.md)。
@@ -230,6 +232,7 @@ CREATE TABLE audit_logs (
       'point_change_request.created',
       'point_change_request.approved',
       'point_change_request.rejected',
+      'email_task.retry_requested',
       'maintenance.admin_created',
       'maintenance.admin_recovered',
       'system.expired_applications_processed',
@@ -356,6 +359,148 @@ WHERE is_director = TRUE AND is_active = TRUE;
 3. 建立 `advisors_user_id_unique`、`advisors_employee_number_unique` 與 `one_active_director` 索引。
 4. 為 `advisors` 掛上 `set_updated_at()` Trigger。
 
+## `application_type_participant_rules`
+
+```sql
+CREATE TABLE application_type_participant_rules (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_type VARCHAR(30) NOT NULL,
+  minimum_participants SMALLINT NOT NULL,
+  maximum_participants SMALLINT NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_type_participant_rules_application_type_check
+    CHECK (application_type IN (
+      'competition',
+      'certificate',
+      'project_participation',
+      'external_exhibition'
+    )),
+
+  CONSTRAINT application_type_participant_rules_minimum_check
+    CHECK (minimum_participants >= 1),
+
+  CONSTRAINT application_type_participant_rules_maximum_check
+    CHECK (maximum_participants >= minimum_participants),
+
+  CONSTRAINT application_type_participant_rules_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from),
+
+  CONSTRAINT application_type_participant_rules_id_type_unique
+    UNIQUE (id, application_type)
+);
+
+ALTER TABLE application_type_participant_rules
+ADD CONSTRAINT application_type_participant_rules_no_overlap
+EXCLUDE USING gist (
+  application_type WITH =,
+  daterange(effective_from, effective_to, '[)') WITH &&
+);
+```
+
+初始規則：
+
+```sql
+INSERT INTO application_type_participant_rules (
+  application_type,
+  minimum_participants,
+  maximum_participants,
+  effective_from,
+  effective_to
+)
+VALUES
+  ('competition', 1, 10, CURRENT_DATE, NULL),
+  ('project_participation', 1, 1, CURRENT_DATE, NULL),
+  ('certificate', 1, 1, CURRENT_DATE, NULL),
+  ('external_exhibition', 1, 15, CURRENT_DATE, NULL);
+```
+
+欄位與資料規則：
+
+- `application_type_participant_rules` 是申請類型人數限制規則，不負責點數換算。
+- Service 依 `application_type` 與 `point_applications.submitted_at` 查詢有效規則。
+- 補件沿用 `point_applications.application_participant_rule_id` 指向的原始規則，不重新套用補件當下的新規則。
+- 跨資料列的人數上下限驗證由 Service 在 Transaction 內執行，資料庫不使用 Trigger 統計 `application_participants` 筆數。
+- `application_type_participant_rules` 必須掛上共用 `set_updated_at()` Trigger。
+
+建立順序：
+
+1. 啟用 `btree_gist` 擴充功能。
+2. 建立 `application_type_participant_rules`。
+3. 建立 `application_type_participant_rules_no_overlap` Exclusion Constraint。
+4. 為 `application_type_participant_rules` 掛上 `set_updated_at()` Trigger。
+
+## `application_instructions`
+
+```sql
+CREATE TABLE application_instructions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  application_type VARCHAR(30) NOT NULL,
+  section_key VARCHAR(80) NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  content TEXT NOT NULL,
+  display_order SMALLINT NOT NULL DEFAULT 0,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT application_instructions_application_type_check
+    CHECK (application_type IN (
+      'competition',
+      'certificate',
+      'project_participation',
+      'external_exhibition'
+    )),
+
+  CONSTRAINT application_instructions_section_key_check
+    CHECK (section_key = LOWER(BTRIM(section_key)) AND section_key <> ''),
+
+  CONSTRAINT application_instructions_title_check
+    CHECK (BTRIM(title) <> ''),
+
+  CONSTRAINT application_instructions_content_check
+    CHECK (BTRIM(content) <> ''),
+
+  CONSTRAINT application_instructions_display_order_check
+    CHECK (display_order >= 0),
+
+  CONSTRAINT application_instructions_effective_range_check
+    CHECK (effective_to IS NULL OR effective_to > effective_from),
+
+  CONSTRAINT application_instructions_section_unique
+    UNIQUE (application_type, section_key)
+);
+```
+
+欄位與資料規則：
+
+- `application_instructions` 是前台說明內容，不作為審核依據，不與 `point_applications` 建立關聯。
+- `content` 可保存 Markdown；前端渲染時必須做 XSS 防護。
+- 正式規則數值不得手動寫入說明表作為驗證依據；前端需要顯示規則數值時，應由對應規則 API 回傳。
+- 前台預設查詢 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容。
+- 管理員後台可查詢所有歷史說明。
+- 不建立 no-overlap constraint；同一申請類型可同時顯示多份說明。
+- `application_instructions` 必須掛上共用 `set_updated_at()` Trigger。
+
+索引：
+
+```sql
+CREATE INDEX idx_application_instructions_visible
+ON application_instructions (application_type, display_order, section_key)
+WHERE is_visible = TRUE;
+```
+
+建立順序：
+
+1. 建立 `application_instructions`。
+2. 建立 `idx_application_instructions_visible`。
+3. 為 `application_instructions` 掛上 `set_updated_at()` Trigger。
+
 ## `point_applications`
 
 ```sql
@@ -365,6 +510,7 @@ CREATE TABLE point_applications (
   application_type VARCHAR(30) NOT NULL,
   status VARCHAR(20) NOT NULL,
   advisor_id BIGINT NOT NULL,
+  application_participant_rule_id BIGINT NOT NULL,
   applicant_name VARCHAR(100) NOT NULL,
   applicant_email VARCHAR(320) NOT NULL,
   applicant_phone VARCHAR(30) NOT NULL,
@@ -428,6 +574,12 @@ CREATE TABLE point_applications (
   CONSTRAINT point_applications_advisor_fk
     FOREIGN KEY (advisor_id) REFERENCES advisors (id)
     ON DELETE RESTRICT
+    ON UPDATE RESTRICT,
+
+  CONSTRAINT point_applications_participant_rule_fk
+    FOREIGN KEY (application_participant_rule_id, application_type)
+    REFERENCES application_type_participant_rules (id, application_type)
+    ON DELETE RESTRICT
     ON UPDATE RESTRICT
 );
 ```
@@ -436,10 +588,11 @@ CREATE TABLE point_applications (
 
 - `current_version_id` 在 `CREATE TABLE` 階段不建立外鍵，由後續 `ALTER TABLE` 加上指向 `application_versions` 的複合外鍵。詳見下一節〈申請與版本的循環外鍵〉。
 - `applicant_email` 寫入前必須移除前後空白並轉為小寫，但不建立唯一索引。
+- `application_participant_rule_id` 保存首次送件時適用的人數規則，補件、重新簽名與核准都沿用原規則。複合外鍵同時保證規則的 `application_type` 與申請本身一致。
 - 補件 Token Hash 使用 `BYTEA`，與 `users` 的 Token 相同處理方式。
 - `advisor_confirmation_expires_at` 是老師簽核最後期限；`pending_advisor` 狀態必填，離開 `pending_advisor` 後保留原期限，不用清空。
 - `closed_at` 代表申請流程結束時間；只有 `approved` 與 `rejected` 終止狀態可以且必須有值，其他狀態必須為 `NULL`。
-- `requested_total_points`、`approved_total_points` 與參與者點數的加總一致性由 Service 在 Transaction 中保證，資料庫層不建立跨表 `CHECK`。
+- `requested_total_points`、`approved_total_points` 與參與者點數的加總一致性，以及參與者人數上下限，皆由 Service 在 Transaction 中保證，資料庫層不建立跨表 `CHECK` 或 Trigger。
 - `point_applications` 必須掛上共用 `set_updated_at()` Trigger。
 
 索引：
@@ -1317,6 +1470,7 @@ CREATE TABLE application_review_actions (
       'advisor_approved',
       'advisor_rejected',
       'revision_requested',
+      'revision_extended',
       'resubmitted',
       'reviewer_approved',
       'reviewer_rejected',
@@ -1363,7 +1517,7 @@ CREATE TABLE application_review_actions (
 - `actor_user_id` 在 `applicant` 與 `system` 操作時為 `NULL`；由 `actor_pair_check` 強制。
 - `ip_address` 與 `user_agent` 僅在 `system` 操作時為 `NULL`；由 `audit_fields_check` 強制。
 - `reason_required_check` 排除三個本身不要求 `reason` 的 action（`advisor_approved`、`resubmitted`、`reviewer_approved`），其他 action 都必須有 `reason`。`reviewer_approved` 含調整時是否要 `reason` 由 Service 依 `metadata` 內容驗證。
-- `metadata` 預設為 `NULL`，僅在有調整時寫入結構化資料。
+- `metadata` 預設為 `NULL`，在有調整或補充流程資料時寫入結構化資料。`revision_extended` 應保存原補件期限與新補件期限。
 - 不可實體刪除既有紀錄。
 
 索引：

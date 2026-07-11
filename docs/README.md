@@ -15,6 +15,7 @@
 - [帳號與權限](authorization.md)：帳號生命週期、角色、權限代碼與權限矩陣。
 - [API 與 Service 邊界](api-service-boundaries.md)：API 分組、權限、Service 職責、Repository 分組與 Transaction 需求摘要。
 - [API Request / Response Schema](api-schemas.md)：共用 response、分頁、錯誤碼、主要 endpoint request / response 與私有檔案 header。
+- [Zod 驗證規格](zod-validation.md)：API request 進入 Service 前的 Zod 驗證責任、schema 分層、跨欄位規則與 Service 驗證邊界。
 - [Transaction 與併發控制](transaction-concurrency.md)：重要寫入流程的 Transaction 邊界、資料列鎖定、併發衝突與冪等策略。
 - [Email Queue 與通知排程](email-queue.md)：Email 任務狀態、模板、event key、worker claim/retry、提醒排程與失敗政策。
 - [登入、Session 與安全設計](auth-session-security.md)：登入方案、Session、Cookie、CSRF、CORS、Rate Limit 與敏感資料遮罩。

@@ -48,6 +48,7 @@ processing -> failed
 | `advisor_sign_reminder_3` | 指導老師第三次提醒 |
 | `advisor_confirmation_expired` | 指導老師逾期未簽核作廢通知 |
 | `revision_request` | 補件通知 |
+| `revision_extended` | 補件期限延長通知 |
 | `revision_reminder` | 補件到期前提醒 |
 | `revision_expired` | 補件逾期作廢通知 |
 | `application_approved` | 申請核准通知 |
@@ -82,6 +83,7 @@ advisor-sign-reminder-2:application-100:version-2
 advisor-sign-reminder-3:application-100:version-2
 advisor-confirmation-expired:application-100:version-2
 revision-request:application-100:version-3
+revision-extended:application-100:version-3:20260715102030
 revision-reminder:application-100:version-3
 revision-expired:application-100:version-3
 application-approved:application-100
@@ -105,6 +107,7 @@ email-delivery-failed:email-task-500
 | 補件重新提交 | 新版本的 `advisor_sign_request` 與三次 `advisor_sign_reminder_*` |
 | 指導老師拒絕 | `application_rejected` |
 | 承辦人要求補件 | `revision_request` 與 `revision_reminder` |
+| 承辦人延長補件期限 | `revision_extended`，並依新期限重新安排尚未寄出的 `revision_reminder` |
 | 承辦人核准 | `application_approved` |
 | 承辦人拒絕 | `application_rejected` |
 | 指導老師簽核逾期作廢 | `advisor_confirmation_expired` |
@@ -139,6 +142,8 @@ email-delivery-failed:email-task-500
 - 補件提醒：`edit_token_expires_at` 前 `24` 小時。
 
 若提醒時間已經早於目前時間，不建立提醒任務。
+
+承辦人延長補件期限時，系統應建立 `revision_extended` 通知申請人。若既有 `revision_reminder` 尚未寄出，應取消舊提醒並依新的 `edit_token_expires_at` 重新建立提醒；已寄出的提醒保留歷史紀錄，不修改。
 
 ## Worker Claim 策略
 
@@ -255,6 +260,8 @@ Email task 進入 `failed` 後，不應直接改變申請狀態。
 
 Email 寄送失敗不會直接讓申請作廢，也不會自動延長期限。
 
+若第一封正式通知未成功送達，例如指導老師簽核通知或申請人補件通知永久失敗，系統不應直接將後續未處理責任歸給指導老師或申請人。第一版不自動補償或重算期限，而是建立 `email_delivery_failed` 通知管理員人工判斷，例如修正 Email、手動重寄、聯絡當事人或依行政規則重新開案。
+
 期限判斷依資料表欄位：
 
 - 指導老師簽核期限：`point_applications.advisor_confirmation_expires_at`
@@ -265,7 +272,7 @@ Email 寄送失敗不會直接讓申請作廢，也不會自動延長期限。
 政策：
 
 - 已成功通知但使用者未處理：逾期後作廢。
-- 通知永久失敗：通知管理員人工處理，不直接作廢。
+- 通知永久失敗：通知管理員人工處理，不直接作廢，也不視為老師或申請人已收到通知但未處理。
 - 若因 Email 無法寄達而需要特殊處理，第一版先由人工重新寄送或要求申請人重新申請。
 
 ## 取消任務

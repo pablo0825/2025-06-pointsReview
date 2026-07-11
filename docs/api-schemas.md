@@ -1,6 +1,6 @@
 ﻿# API Request / Response Schema
 
-本文件定義第一版 API 的共用 request / response 格式、分頁、錯誤碼、主要 endpoint payload 與欄位命名規則。API 分組、權限與 Service 邊界請參考 [API 與 Service 邊界](api-service-boundaries.md)；資料表欄位語意請參考 [資料模型](data-model.md)。
+本文件定義第一版 API 的共用 request / response 格式、分頁、錯誤碼、主要 endpoint payload 與欄位命名規則。Zod 驗證責任與跨欄位規則請參考 [Zod 驗證規格](zod-validation.md)；API 分組、權限與 Service 邊界請參考 [API 與 Service 邊界](api-service-boundaries.md)；資料表欄位語意請參考 [資料模型](data-model.md)。
 
 ## 共用規則
 
@@ -221,8 +221,9 @@ Content type 使用 `multipart/form-data`。JSON 欄位建議放在 `payload`，
     "competitionLevel": "national_integrated",
     "competitionLevelOther": null,
     "award": "finalist",
+    "awardOther": null,
     "competitionName": "全國競賽",
-    "organizer": "主辦單位",
+    "competitionCategory": "遊戲設計組",
     "competitionDate": "2026-07-05"
   },
   "attachments": [
@@ -247,17 +248,21 @@ Content type 使用 `multipart/form-data`。JSON 欄位建議放在 `payload`，
   "competitionLevel": "national_integrated",
   "competitionLevelOther": null,
   "award": "finalist",
+  "awardOther": null,
   "competitionName": "全國競賽",
-  "organizer": "主辦單位",
+  "competitionCategory": "遊戲設計組",
   "competitionDate": "2026-07-05"
 }
 ```
+
+`competitionCategory` 對應資料庫欄位 `competition_category`，表示同一競賽中的比賽組別、類別或領域，例如「遊戲設計組」或「動畫類」。它不是點數規則使用的競賽等級；競賽等級由 `competitionLevel` 表示。第一版競賽申請不保存主辦單位。
 
 參與計畫：
 
 ```json
 {
   "projectName": "A 計畫",
+  "principalInvestigator": "陳教授",
   "workDescription": "協助設計與開發",
   "salaryItems": [
     {
@@ -274,6 +279,7 @@ Content type 使用 `multipart/form-data`。JSON 欄位建議放在 `payload`，
 {
   "certificateName": "Adobe Certified Professional",
   "certificateIssuer": "Adobe",
+  "certificateNumber": "ACP-2026-0001",
   "certificateDate": "2026-07-05"
 }
 ```
@@ -642,12 +648,25 @@ Response：
 
 ### `POST /reviewer/applications/review/:publicId/extend-revision`
 
+僅可延長 `needs_revision` 狀態且補件 Token 仍有效的申請。新的 `editTokenExpiresAt` 必須晚於目前時間與原補件期限；延長時不重新產生補件 Token。
+
 Request：
 
 ```json
 {
   "reason": "申請人要求延長補件期限。",
   "editTokenExpiresAt": "2026-07-15T10:20:30.000+08:00"
+}
+```
+
+Response：
+
+```json
+{
+  "data": {
+    "status": "needs_revision",
+    "editTokenExpiresAt": "2026-07-15T10:20:30.000+08:00"
+  }
 }
 ```
 
@@ -661,7 +680,8 @@ Request：
   "approvedTypeDetails": {
     "competitionLevel": "national_non_integrated",
     "competitionLevelOther": null,
-    "award": "finalist"
+    "award": "finalist",
+    "awardOther": null
   },
   "participants": [
     {
