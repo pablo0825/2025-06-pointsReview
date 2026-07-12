@@ -168,7 +168,11 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `student_points_summary` View
 - [x] 建立 seed 執行方式。
 - [x] 建立初始點數規則 seed。
-- [ ] 驗證乾淨資料庫可從第一個 migration 跑到最新版本。
+- [x] 驗證乾淨資料庫可從第一個 migration 跑到最新版本。
+  - 已使用暫時資料庫 `points_review_verify` 從空資料庫執行 `migrate:up`。
+  - `migrate:status` 結果為 migration files 20、applied migrations 20、pending migrations 0。
+  - 已執行 `seed:development`，確認初始人數規則與四類點數規則 seed 筆數符合文件。
+  - 已確認 `student_points_summary` View 可查詢，且所有具有 `updated_at` 的實體表都有 `set_updated_at()` trigger。
 
 完成條件：
 
