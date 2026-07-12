@@ -10,7 +10,9 @@
     "migrate:create": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate create -m migrations --migration-file-language sql --migration-filename-format utc",
     "migrate:up": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate up -m migrations",
     "migrate:down": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate down -m migrations",
-    "migrate:status": "node -r dotenv/config scripts/migrate-status.js"
+    "migrate:status": "node -r dotenv/config scripts/migrate-status.js",
+    "seed:development": "node -r dotenv/config scripts/run-seed.js development",
+    "seed:test": "node -r dotenv/config scripts/run-seed.js test"
   },
   "keywords": [],
   "author": "",
