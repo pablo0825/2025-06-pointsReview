@@ -167,7 +167,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `student_point_change_requests`
   - [x] `student_points_summary` View
 - [x] 建立 seed 執行方式。
-- [ ] 建立初始點數規則 seed。
+- [x] 建立初始點數規則 seed。
 - [ ] 驗證乾淨資料庫可從第一個 migration 跑到最新版本。
 
 完成條件：
