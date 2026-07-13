@@ -212,6 +212,63 @@ Rate limit key 依場景選擇：
 
 Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態，不保存密碼、原始 token、session token 或 CSRF token。
 
+### Auth Rate Limit 與登入失敗鎖定待確認方案
+
+以下為第一版 Auth rate limit 的建議方案，實作前可逐項確認。
+
+1. Redis key 不直接保存 Email
+
+   Normalized email 先做 SHA-256 hash，再放入 Redis key，避免 Redis key 直接暴露完整帳號。
+
+   ```text
+   rate_limit:auth:login:ip:{ip}
+   rate_limit:auth:login:email:{sha256(normalized_email)}
+   auth:login_failed:email:{sha256(normalized_email)}
+   ```
+
+2. Production 必須使用 Redis
+
+   正式環境不使用 in-memory rate limit。若 production 沒有可用 Redis，應視為設定錯誤，避免多 instance 部署時各自計數造成限制失效。
+
+3. Development / test 可使用 in-memory fallback
+
+   Local development 與測試環境可使用 in-memory store，方便開發與自動測試；此設定不可用於 production。
+
+4. 登入失敗鎖定規則
+
+   同一 normalized email 連續失敗 `5` 次後鎖定 `15` 分鐘。鎖定期間即使密碼正確也拒絕登入。登入成功後清除該 email 的失敗計數與鎖定狀態。
+
+5. 鎖定期間錯誤碼
+
+   鎖定期間回傳 `429 rate_limited`，訊息使用不揭露帳號狀態的通用文字：
+
+   ```json
+   {
+     "code": "rate_limited",
+     "message": "嘗試次數過多，請稍後再試。"
+   }
+   ```
+
+6. 一般帳號或密碼錯誤
+
+   Email 不存在、密碼錯誤、尚未啟用、已停用或 `password_hash` 為 `NULL`，都回傳相同錯誤，避免透露帳號是否存在或狀態：
+
+   ```json
+   {
+     "code": "unauthenticated",
+     "message": "帳號或密碼錯誤。"
+   }
+   ```
+
+7. 第一批實作範圍
+
+   先套用在 `POST /auth/login`：
+
+   - IP 維度：每 `15` 分鐘最多 `30` 次。
+   - Email 連續失敗：`5` 次後鎖定 `15` 分鐘。
+
+   Password reset、account activation 與公開 API rate limit 後續共用同一套基礎設施擴充。
+
 ## 公開 API 防濫用
 
 公開申請 API：
