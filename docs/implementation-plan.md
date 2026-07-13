@@ -223,8 +223,8 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 `POST /auth/logout`。
 - [ ] 實作 `GET /auth/me`。
 - [ ] 實作 `GET /auth/csrf-token`。
-- [ ] 實作 authentication middleware。
-- [ ] 實作 CSRF middleware。
+- [x] 實作 authentication middleware。
+- [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
 - [x] 實作 permission middleware。
 

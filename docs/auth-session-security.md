@@ -31,17 +31,21 @@ Session token 原文只放在瀏覽器 cookie；資料庫只保存 token hash。
 建議：
 
 ```text
+Name = points_review_session
 HttpOnly = true
 Secure = true
 SameSite = Lax
 Path = /
+Domain = not set
 ```
 
 規則：
 
+- Cookie 名稱第一版固定為 `points_review_session`。
 - `HttpOnly` 必須開啟，避免前端 JavaScript 讀取 session token。
-- 正式環境 `Secure` 必須開啟，只允許 HTTPS 傳送。
+- 正式環境 `Secure` 必須開啟，只允許 HTTPS 傳送；local development 可關閉。
 - 第一版若前後端同站部署，`SameSite = Lax` 足夠。
+- 第一版不設定 `domain`，讓 cookie 只綁定目前 host；若未來前後端跨子網域部署，再重新評估 cookie domain。
 - 若 frontend 與 backend 是不同容器，但透過 reverse proxy 對外提供同一個 HTTPS origin，例如 `https://points.example.edu` 與 `/api`，仍視為同源部署。
 - 若未來前後端跨站部署且需要 cookie，才評估 `SameSite = None; Secure`，並加強 CSRF 防護。
 
@@ -163,6 +167,8 @@ IP 維度：
 - 前端在登入成功後、頁面初始化且已有有效 session 時，呼叫 `GET /auth/csrf-token` 取得 token。
 - 前端收到 `csrf_token_invalid` 時，可重新呼叫 `GET /auth/csrf-token` 一次並重試原操作；若仍失敗，要求使用者重新整理頁面或重新登入。
 - 登出後前端必須清除記憶體中的 CSRF token。
+- `GET`、`HEAD` 與 `OPTIONS` 不套用 CSRF 檢查；使用 session cookie 的 `POST`、`PATCH`、`PUT` 與 `DELETE` 必須帶 `X-CSRF-Token` header。
+- `GET /auth/csrf-token` 需要有效 session，但本身不需要 CSRF header。
 
 公開 API 若不使用 session cookie，例如建立申請、補件 token、公開點數查詢，仍需 rate limit，但不一定需要 CSRF token。
 
@@ -285,4 +291,3 @@ Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態
 ## 尚待實作時確認
 
 - Redis rate limit key 命名、window 設定與 middleware 套件。
-- Session cookie 名稱與 domain。
