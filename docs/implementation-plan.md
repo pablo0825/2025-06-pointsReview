@@ -228,12 +228,40 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
 - [x] 實作 permission middleware。
+- [ ] 設計並實作 Auth rate limit：
+  - [ ] Redis key 命名與 window 設定。
+  - [ ] local development / test 的 in-memory fallback。
+  - [ ] `rate_limited` 錯誤回應。
+- [ ] 實作登入失敗防護：
+  - [ ] IP 維度登入嘗試限制。
+  - [ ] Email 維度連續失敗次數。
+  - [ ] 連續失敗達上限後鎖定 `15` 分鐘。
+  - [ ] 登入成功後清除該帳號失敗計數。
+- [ ] 實作 `POST /auth/activation/:token`：
+  - [ ] 驗證 activation token hash 與到期時間。
+  - [ ] 設定 Argon2id password hash。
+  - [ ] 清除 activation token hash 與到期時間。
+  - [ ] 寫入 `activated_at`。
+  - [ ] 依管理員移交流程判斷是否啟用帳號。
+- [ ] 實作 `POST /auth/password-reset/request`：
+  - [ ] 不揭露 Email 是否存在。
+  - [ ] 產生 password reset token hash 與到期時間。
+  - [ ] 建立 password reset email task。
+  - [ ] 套用 password reset rate limit。
+- [ ] 實作 `POST /auth/password-reset/:token`：
+  - [ ] 驗證 password reset token hash 與到期時間。
+  - [ ] 更新 Argon2id password hash。
+  - [ ] 清除 password reset token hash 與到期時間。
+  - [ ] 撤銷該使用者既有 session。
+  - [ ] 建立 `user.password_reset_completed` audit log。
 
 完成條件：
 
 - 已啟用使用者可以登入並取得 HttpOnly session cookie。
 - 登入後可以取得 `/auth/me` 與 CSRF token。
 - 權限不足的 API 會回傳 `403 forbidden`。
+- Login、activation 與 password reset 具備第一版 rate limit 與不洩漏帳號狀態的錯誤回應。
+- 帳號啟用與密碼重設流程會建立必要 email tasks 並清除 token hash。
 
 ## Phase 4：管理員最小後台能力
 
@@ -243,9 +271,13 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 `UserAdminService` 最小功能：
   - [ ] list users
   - [ ] create user
+  - [ ] 建立帳號時產生 activation token hash 與到期時間
+  - [ ] 建立 account activation email task
   - [ ] activate / deactivate user
   - [ ] resend activation
+  - [ ] resend activation 時產生新的 activation token hash 與 email task
   - [ ] send password reset
+  - [ ] send password reset 時產生 password reset token hash 與 email task
 - [ ] 實作 `AdvisorAdminService` 最小功能：
   - [ ] list advisors
   - [ ] create advisor with user relation
@@ -400,6 +432,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] retry
   - [ ] failed
   - [ ] email delivery failed notification
+- [ ] 實作 expired session cleanup job。
 - [ ] 實作手動 retry failed email task。
 - [ ] 實作 stale processing email task maintenance。
 - [ ] 實作 advisor confirmation expired job。
