@@ -214,7 +214,8 @@ REDIS_URL=redis://pr_b_redis:6379
 目標：完成登入後 API 的基礎身分驗證與授權。
 
 - [x] 實作密碼雜湊策略，使用 Argon2id。
-- [ ] 建立 `UserRepository`。
+- [x] 建立 `UserRepository`。
+  - [x] 建立 `findById`、`findByEmail`、`updateLastLoginAt`，供 Auth Service 與後續使用者管理功能沿用。
 - [x] 建立 `SessionRepository`。
   - [x] 建立 session / CSRF token helper，使用 32 bytes random 並以 base64url 表示原始 token。
   - [x] 建立 SHA-256 token hash helper，資料庫只保存 hash。
