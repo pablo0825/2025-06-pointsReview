@@ -238,6 +238,38 @@ export async function revokeUserSessions(
   return result.rowCount ?? 0;
 }
 
+export async function updateCsrfTokenHash(
+  client: DatabaseClient,
+  sessionId: string,
+  csrfTokenHash: Buffer,
+): Promise<SessionRow | null> {
+  const result = await client.query<SessionRow>(
+    `
+      UPDATE user_sessions
+      SET csrf_token_hash = $2
+      WHERE id = $1
+        AND revoked_at IS NULL
+        AND expires_at > NOW()
+      RETURNING
+        id::text,
+        session_token_hash,
+        csrf_token_hash,
+        user_id::text,
+        last_seen_at,
+        expires_at,
+        revoked_at,
+        revoked_reason,
+        ip_address::text,
+        user_agent,
+        created_at,
+        updated_at
+    `,
+    [sessionId, csrfTokenHash],
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export const SessionRepository = {
   createSession,
   findActiveSessionByTokenHash,
@@ -245,4 +277,5 @@ export const SessionRepository = {
   touchSessionLastSeen,
   revokeSession,
   revokeUserSessions,
+  updateCsrfTokenHash,
 };

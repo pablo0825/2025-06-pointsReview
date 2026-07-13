@@ -68,7 +68,37 @@ export async function findByEmail(
   return result.rows[0] ?? null;
 }
 
+export async function updateLastLoginAt(
+  client: DatabaseClient,
+  userId: string,
+): Promise<UserRow | null> {
+  const result = await client.query<UserRow>(
+    `UPDATE users
+     SET last_login_at = NOW()
+     WHERE id = $1
+     RETURNING
+       id::text,
+       display_name,
+       email,
+       password_hash,
+       role,
+       is_active,
+       activation_token_hash,
+       activation_token_expires_at,
+       activated_at,
+       password_reset_token_hash,
+       password_reset_token_expires_at,
+       last_login_at,
+       created_at,
+       updated_at`,
+    [userId],
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export const UserRepository = {
   findById,
   findByEmail,
+  updateLastLoginAt,
 };

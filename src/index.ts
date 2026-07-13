@@ -16,6 +16,7 @@ import cookieParser from "cookie-parser";
 import competitionFormRoute from "./routes/competitionForm.route";
 import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
 import authRoute from "./routes/auth.route";
+import newAuthRoute from "./routes/newAuth.route";
 import userAdminRoute from "./routes/user.admin.route";
 import { AppError } from "./utils/AppError";
 import { startEmailQueueJob } from "./jobs/emailQueue.job";
@@ -103,6 +104,7 @@ app.use("/api/form/competition", competitionFormRoute);
 app.use("/api/admin/form/competition", competitionFormAdminRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/admin/users", userAdminRoute);
+app.use("/auth", newAuthRoute);
 
 /*  */
 startEmailQueueJob();

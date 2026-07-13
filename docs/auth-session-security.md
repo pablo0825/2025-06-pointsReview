@@ -163,6 +163,7 @@ IP 維度：
 - 前端透過 `GET /auth/csrf-token` 取得原始 CSRF token，並在 state-changing API 使用 `X-CSRF-Token` header 帶回。
 - 後端驗證 header token hash 與目前 session 綁定的 `csrf_token_hash` 一致。
 - 第一版採每個 session 一個 CSRF token；登出、session 過期或 session 被撤銷時一併失效。
+- `GET /auth/csrf-token` 每次會產生新的 CSRF token、更新 `user_sessions.csrf_token_hash`，並回傳新的原始 token。資料庫不保存原始 CSRF token。
 - CSRF token 缺漏、格式錯誤或驗證失敗時，回傳 `403` 與錯誤碼 `csrf_token_invalid`。
 - 前端在登入成功後、頁面初始化且已有有效 session 時，呼叫 `GET /auth/csrf-token` 取得 token。
 - 前端收到 `csrf_token_invalid` 時，可重新呼叫 `GET /auth/csrf-token` 一次並重試原操作；若仍失敗，要求使用者重新整理頁面或重新登入。

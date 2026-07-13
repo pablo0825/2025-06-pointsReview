@@ -219,10 +219,10 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] 建立 session / CSRF token helper，使用 32 bytes random 並以 base64url 表示原始 token。
   - [x] 建立 SHA-256 token hash helper，資料庫只保存 hash。
   - [x] 建立 session 建立、查詢有效 session、更新 last seen、撤銷單一 session、撤銷使用者所有 session 的 repository function。
-- [ ] 實作 `POST /auth/login`。
-- [ ] 實作 `POST /auth/logout`。
-- [ ] 實作 `GET /auth/me`。
-- [ ] 實作 `GET /auth/csrf-token`。
+- [x] 實作 `POST /auth/login`。
+- [x] 實作 `POST /auth/logout`。
+- [x] 實作 `GET /auth/me`。
+- [x] 實作 `GET /auth/csrf-token`。
 - [x] 實作 authentication middleware。
 - [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
