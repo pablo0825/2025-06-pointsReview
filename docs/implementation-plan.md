@@ -188,18 +188,21 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 不建立全域 query helper；Repository 統一接收 `DatabaseClient`。
 - [x] 建立 transaction helper。
 - [x] 建立 Repository function 接收一般 client 或 transaction client 的慣例，並以 `UserRepository` 作為最小範例。
-- [ ] 建立統一錯誤格式：
-  - [ ] `{ code, message }`
-  - [ ] Zod error `fields`
-- [ ] 建立 DB constraint error 轉換策略。
-- [ ] 建立 Zod validation middleware：
-  - [ ] params
-  - [ ] query
-  - [ ] body
-- [ ] 建立 request context helper：
-  - [ ] ip address
-  - [ ] user agent
-  - [ ] current user
+- [x] 建立統一錯誤格式：
+  - [x] `{ code, message }`
+  - [x] Zod error `fields`
+- [x] 建立 DB constraint error 轉換策略。
+  - 目前先建立 PostgreSQL constraint error 的共用轉換 helper。
+  - 已內建文件中已確認的共用 constraint mapping，例如 Email 重複、點數規則期間重疊、唯一啟用管理員與主任衝突。
+  - 各 Service 的細部 constraint error mapping 仍依實作時的業務情境補上，不在此階段猜測。
+- [x] 建立 Zod validation middleware：
+  - [x] params
+  - [x] query
+  - [x] body
+- [x] 建立 request context helper：
+  - [x] ip address
+  - [x] user agent
+  - [x] current user
 
 完成條件：
 
