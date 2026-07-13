@@ -269,6 +269,66 @@ Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態
 
    Password reset、account activation 與公開 API rate limit 後續共用同一套基礎設施擴充。
 
+### Token URL 與 Auth Token Repository 待確認方案
+
+以下為 account activation 與 password reset 實作前的建議方案，實作前可逐項確認。
+
+1. Token URL base
+
+   第一版使用 `FRONTEND_URL` 組帳號啟用與密碼重設連結。若未來公開前台與後台拆成不同網域，再新增更明確的 `PUBLIC_APP_URL` 或 `BACKOFFICE_URL`。
+
+   ```text
+   {FRONTEND_URL}/auth/activation/{token}
+   {FRONTEND_URL}/auth/password-reset/{token}
+   ```
+
+2. Token 原文只出現在 Email 連結
+
+   Activation token 與 password reset token 原文不寫入資料庫、不寫入 log、不放入 audit metadata。資料庫只保存 SHA-256 token hash 與到期時間。
+
+3. Token repository method 範圍
+
+   `UserRepository` 後續需補上 token 相關 method：
+
+   - 依 activation token hash 查詢可啟用使用者。
+   - 寫入新的 activation token hash 與到期時間。
+   - 清除 activation token hash 與到期時間。
+   - 依 password reset token hash 查詢可重設密碼使用者。
+   - 寫入新的 password reset token hash 與到期時間。
+   - 清除 password reset token hash 與到期時間。
+   - 更新 password hash 與 `activated_at`。
+
+4. Token 到期時間
+
+   第一版沿用既有設計：
+
+   - Activation token：`24` 小時。
+   - Password reset token：`30` 分鐘。
+
+5. Token 使用後立即失效
+
+   `AccountActivationService.activate` 與 `PasswordResetService.resetPassword` 必須在同一個 Transaction 中清除 token hash，避免同一連結重複使用。
+
+### Session Cleanup Job 待確認方案
+
+以下為過期 session 清理工作的建議方案，實作前可逐項確認。
+
+1. 第一版先標記 revoked，不直接刪除近期資料
+
+   對 `expires_at <= NOW()` 且 `revoked_at IS NULL` 的 session，背景任務將其標記為 revoked，保留近期資料供除錯與稽核查詢。
+
+2. Revocation reason
+
+   `SessionRevocationReason` 後續需補上 `expired`，並在 cleanup job 將 `revoked_reason` 寫為 `expired`。
+
+3. Retention policy 另行決定
+
+   是否刪除很久以前的 session 紀錄，需要另外制定 retention policy。第一版 cleanup job 不先做永久刪除。
+
+4. Job 頻率
+
+   第一版可每小時執行一次 expired session cleanup。若正式環境 session 數量很大，再改成分批處理。
+
 ## 公開 API 防濫用
 
 公開申請 API：

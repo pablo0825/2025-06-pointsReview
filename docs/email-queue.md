@@ -60,6 +60,46 @@ processing -> failed
 
 `template_payload` 使用 `JSONB` 保存模板資料。Payload 不應保存密碼、原始 token hash 或其他不需要出現在信件中的敏感資料。
 
+### Auth Email Payload 待確認方案
+
+以下為 account activation 與 password reset email task payload 的建議方案，實作前可逐項確認。
+
+1. Payload 保存完整 URL
+
+   第一版建議由建立 email task 的 Service 組好完整 URL，worker 只負責依 `template_name` render 與寄送，不再重新推導前端路徑。
+
+2. Account activation payload
+
+   建議欄位：
+
+   ```json
+   {
+     "activationUrl": "https://example.edu/auth/activation/raw-token",
+     "expiresAt": "2026-07-14T12:00:00.000+08:00",
+     "displayName": "王小明"
+   }
+   ```
+
+3. Password reset payload
+
+   建議欄位：
+
+   ```json
+   {
+     "resetUrl": "https://example.edu/auth/password-reset/raw-token",
+     "expiresAt": "2026-07-13T12:30:00.000+08:00",
+     "displayName": "王小明"
+   }
+   ```
+
+4. 不保存 token hash 或密碼資訊
+
+   Payload 可以包含原始 token URL，因為 email 本身必須提供連結；但不得保存 token hash、password hash、密碼、session token、CSRF token 或其他不需要出現在信件中的敏感資料。
+
+5. Event key
+
+   Account activation 重寄與 password reset 允許再次建立新任務，`event_key` 必須包含時間戳或 token version，避免與舊任務衝突。
+
 ## Event Key 規則
 
 `event_key` 用來保證同一通知事件只建立一次。
@@ -95,6 +135,38 @@ email-delivery-failed:email-task-500
 ```
 
 若同一類通知允許再次寄送，例如管理員手動重寄啟用信，`event_key` 必須加入新的時間戳或 token version，避免和舊任務衝突。
+
+## Email Worker / Retry 待確認方案
+
+以下為第一版 email worker 與 retry 的建議方案，實作前可逐項確認。
+
+1. Worker claim 策略
+
+   Worker 從 `email_tasks` claim `status = 'pending'` 且 `scheduled_at <= NOW()` 的任務，將狀態改為 `processing` 後再寄送。Claim 必須避免多個 worker 同時處理同一筆任務。
+
+2. 成功寄送
+
+   寄送成功後更新：
+
+   - `status = 'sent'`
+   - `sent_at = NOW()`
+   - 清除或保留 `last_error` 需實作時確認。
+
+3. 可重試失敗
+
+   可重試錯誤增加 `attempt_count`，依退避策略更新 `scheduled_at`，狀態回到 `pending`。若達 `max_attempts`，狀態改為 `failed`。
+
+4. 不可重試失敗
+
+   不可重試錯誤直接標記 `failed`，保存安全摘要到 `last_error`，不得保存 provider 回傳中的敏感內容。
+
+5. 手動 retry
+
+   管理員手動 retry failed task 時，不修改原 failed task，而是建立新的 `email_tasks`，並在 payload 或 metadata 中記錄 `retryOfEmailTaskId`。
+
+6. Stale processing maintenance
+
+   對長時間停留在 `processing` 的任務，需有 maintenance job 依安全規則重排或標記 failed，避免 worker crash 後任務永久卡住。
 
 ## 建立任務時機
 

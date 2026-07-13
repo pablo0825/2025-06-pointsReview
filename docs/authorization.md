@@ -35,6 +35,40 @@
 - 若系統目前沒有啟用中的管理員，初始管理員完成 Email 啟用與密碼設定後，可將 `is_active` 設為 `TRUE`。
 - 建立初始管理員時必須寫入 `maintenance.admin_created` 通用稽核紀錄。
 
+初始管理員 CLI 待確認方案：
+
+1. 指令名稱
+
+   第一版建議使用：
+
+   ```text
+   npm run admin:create -- admin@example.com
+   ```
+
+2. 指令行為
+
+   指令建立 `role = 'admin'` 的使用者，初始狀態為 `password_hash = NULL`、`activated_at = NULL`，並產生 activation token hash 與到期時間。
+
+3. 不在 CLI 中直接設定密碼
+
+   初始管理員仍透過 Email activation link 自行設定密碼，避免維運人員在 CLI 輸入或得知管理員密碼。
+
+4. Email task
+
+   指令不直接寄信，建議建立 `account_activation` email task，由 email worker 寄送。
+
+5. Active admin 條件
+
+   若系統目前沒有啟用中的管理員，該初始管理員完成 activation 後可將 `is_active` 設為 `TRUE`。若已存在啟用中的管理員，新的 admin 帳號完成 activation 後仍維持 `is_active = FALSE`，等待管理員移交流程。
+
+6. 重複執行
+
+   若 email 已存在，指令應回報穩定錯誤，不直接覆蓋既有帳號。是否允許 `--resend` 另行討論。
+
+7. Audit log
+
+   成功建立初始管理員時寫入 `maintenance.admin_created`，metadata 不保存原始 token、token hash 或 activation URL。
+
 一般管理員移交：
 
 - 目前啟用中的管理員先建立新管理員帳號；新帳號初始狀態為 `is_active = FALSE`、`activated_at = NULL`。
