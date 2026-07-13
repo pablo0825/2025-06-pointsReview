@@ -1,11 +1,11 @@
 import type { Request } from "express";
 
-export type UserRole = "advisor" | "reviewer" | "admin";
+import { isRole, type Role } from "../auth/permissions";
 
 export interface CurrentUser {
   id: string;
   email: string;
-  role: UserRole;
+  role: Role;
 }
 
 export interface RequestContext {
@@ -28,19 +28,11 @@ function getForwardedIp(req: Request): string | undefined {
   return undefined;
 }
 
-function normalizeRole(role: unknown): UserRole | undefined {
-  if (role === "advisor" || role === "reviewer" || role === "admin") {
-    return role;
-  }
-
-  return undefined;
-}
-
 function getCurrentUser(req: Request): CurrentUser | null {
   const user = req.user;
-  const role = normalizeRole(user?.role);
+  const role = user?.role;
 
-  if (!user?.id || !user.email || !role) {
+  if (!user?.id || !user.email || !isRole(role)) {
     return null;
   }
 

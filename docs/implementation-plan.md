@@ -222,8 +222,8 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 `GET /auth/csrf-token`。
 - [ ] 實作 authentication middleware。
 - [ ] 實作 CSRF middleware。
-- [ ] 實作 `Permission` 型別與 `rolePermissions` mapping。
-- [ ] 實作 permission middleware。
+- [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
+- [x] 實作 permission middleware。
 
 完成條件：
 
