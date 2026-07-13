@@ -10,6 +10,8 @@
 - 每個需要 Transaction 的 Service 必須使用同一個 transaction client 呼叫多個 Repository。
 - 先讓 migration、schema 與核心資料流穩定，再擴展背景任務與管理功能。
 - 每個階段至少保留可手動驗證或自動測試的完成條件。
+- 測試隨功能所在 Phase 一起完成；Phase 10 只補跨模組回歸、併發與 CI 收斂，不把前面所有測試延後到最後。
+- Checklist 的 `[x]` 代表程式、必要安全控制與該階段驗證均已完成；只有完成設計評估時，必須明確標示為「評估 Checklist」。
 
 ## Phase 0：專案基礎整理
 
@@ -88,7 +90,7 @@ src/middlewares/validateRequest.middleware.ts
 - 開始改程式前建議先跑一次 `npm run build`，記錄既有 TypeScript 問題，避免後續混淆新舊錯誤來源。
 - 若舊 API 仍需暫時可用，應以 route namespace 或啟動設定隔離新舊資料流，避免同一 endpoint 同時操作 Mongo 與 PostgreSQL。
 
-### Phase 0 Checklist
+### Phase 0 評估 Checklist
 
 - [x] 盤點現有 `src/` 的 entrypoint、routes、middlewares、controllers、models 與 jobs。
 - [x] 決定舊 Mongo/Mongoose route 先保留但不新增功能，新 PostgreSQL route 依文件定義路徑逐步建立並隔離資料流。
@@ -96,10 +98,23 @@ src/middlewares/validateRequest.middleware.ts
 - [x] 確認現有 error handler、async handler、upload middleware 可否沿用；結論是 `asyncHandler` 可沿用，error handler 與 upload/storage 需依新 API contract 重構。
 - [x] 更新 `package.json` scripts 規劃，保留既有啟動方式並加入 migration scripts；實際修改 package scripts 併入 Phase 1 第一個實作 commit。
 
+### Phase 0 實作 Checklist
+
+以下項目是 PostgreSQL 新主流程的啟動前提。評估完成不代表這些改造已完成；在繼續擴充新 API 前應先補齊。
+
+- [ ] 將 Express app 組裝與程序啟動拆開，例如 `createApp()` / `startServer()`，讓 API test 載入 app 時不會自動 listen、連線 MongoDB 或啟動 jobs。
+- [ ] 新 PostgreSQL 主流程只以 `DATABASE_URL` 作為資料庫啟動必要條件，不再強制要求 MongoDB `DATABASE` / `DATABASE_PASSWORD`。
+- [ ] 新 PostgreSQL 主流程不再強制要求舊 JWT access / refresh secrets。
+- [ ] 使用明確的 legacy 啟動開關或獨立 entrypoint 隔離舊 Mongo routes、Mongo connection 與舊 jobs；預設啟動新主流程時不得自動載入。
+- [ ] 確認新舊 Auth route 不會在正式部署同時提供兩套不同登入機制。
+- [x] 安裝並註冊 `cookie-parser`，供 server-side session cookie 使用。
+- [ ] 驗證只提供 `DATABASE_URL`、必要的 PostgreSQL 新系統設定時，backend 可以成功啟動。
+
 完成條件：
 
 - 專案中舊 Mongo 與新 PostgreSQL 實作邊界明確。
-- 已確認第一個實作切入點與不搬動的舊功能範圍。
+- PostgreSQL 新主流程不依賴 MongoDB、舊 JWT secrets 或舊 jobs 即可啟動。
+- 測試載入 Express app 時不會產生 listen、外部連線或背景工作等副作用。
 
 ## Phase 1：資料庫與 Migration
 
@@ -145,7 +160,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] `migrate:up`
   - [x] `migrate:down`
   - [x] `migrate:status`，由專案腳本讀取 migration 檔案並查詢 `pgmigrations` 狀態。
-- [ ] 依 [Migration 與 Seed 方案](migration-plan.md) 建立 migration：
+- [x] 依 [Migration 與 Seed 方案](migration-plan.md) 建立 migration：
   - [x] extensions 與 `set_updated_at()` trigger function
   - [x] `users`
   - [x] `user_sessions`
@@ -173,12 +188,20 @@ REDIS_URL=redis://pr_b_redis:6379
   - `migrate:status` 結果為 migration files 20、applied migrations 20、pending migrations 0。
   - 已執行 `seed:development`，確認初始人數規則與四類點數規則 seed 筆數符合文件。
   - 已確認 `student_points_summary` View 可查詢，且所有具有 `updated_at` 的實體表都有 `set_updated_at()` trigger。
+- [ ] 建立可重複執行的 migration verification command，至少驗證：
+  - [ ] 從空測試資料庫執行全部 migration。
+  - [ ] extension、trigger function、必要 constraint 與 index 存在。
+  - [ ] 所有具有 `updated_at` 的實體表都有 `set_updated_at()` trigger。
+  - [ ] `student_points_summary` View 可查詢。
+  - [ ] 執行最小 test seed。
+  - [ ] 重跑 migration runner 不會重複套用已完成 migration。
 
 完成條件：
 
 - `migrate:up` 可在乾淨 PostgreSQL database 完整成功。
 - `student_points_summary` View 可查詢。
 - 所有具有 `updated_at` 的資料表都有 trigger。
+- Migration verification 可由固定指令重複執行，不只依賴一次性人工驗證。
 
 ## Phase 2：共用後端骨架
 
@@ -203,11 +226,34 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] ip address
   - [x] user agent
   - [x] current user
+- [ ] 建立測試基礎：
+  - [ ] 選定並設定 test runner。
+  - [ ] 建立獨立 PostgreSQL test database 設定與防止連到 production 的檢查。
+  - [ ] 建立 repository / service transaction rollback test helper。
+  - [ ] 建立 API test 可直接載入的 Express app。
+- [ ] 建立應用程式啟動與停止生命週期：
+  - [ ] 啟動時驗證 PostgreSQL 可連線。
+  - [ ] `SIGTERM` / `SIGINT` 停止接收請求並關閉 PostgreSQL pool。
+  - [ ] 建立 health / readiness endpoint，readiness 必須反映必要服務是否可用。
+- [ ] 建立 HTTP 安全邊界：
+  - [ ] JSON / URL-encoded request body 大小限制。
+  - [ ] 正式環境 same-origin 或明確 CORS allowlist；不得直接使用無限制的 `cors()`。
+  - [ ] 依實際 reverse proxy 拓樸設定 Express `trust proxy`。
+  - [ ] 統一 client IP 解析方式，不直接信任任意來源的 `X-Forwarded-For`。
+  - [ ] Log 遮罩密碼、原始 token、token hash、session token、CSRF token 與 SQL error 原文。
+- [ ] 補共用骨架測試：
+  - [ ] transaction callback 成功時 commit、失敗時 rollback。
+  - [ ] Zod params / query / body 驗證與 `validation_failed` response。
+  - [ ] 已映射與未映射 PostgreSQL constraint error。
+  - [ ] request context 在直連與可信任 proxy 情境取得正確 IP。
 
 完成條件：
 
 - 新 route 可使用 PostgreSQL query 與 transaction helper。
 - Zod 驗證錯誤可回傳文件定義的 `validation_failed` 格式。
+- Express app 可在測試中載入且不自動啟動外部副作用。
+- 共用 transaction、validation、error mapping 與 request context 具有自動化測試。
+- 正式環境的 CORS、body limit、proxy 與敏感 log 政策有明確設定。
 
 ## Phase 3：Auth / Session / 權限
 
@@ -228,6 +274,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
 - [x] 實作 permission middleware。
+- [ ] 確認 Phase 0 / Phase 2 的 proxy 與 client IP 設定已完成，Auth rate limit 不使用可由 client 任意偽造的 IP header。
 - [ ] 設計並實作 Auth rate limit：
   - [ ] Redis key 命名與 window 設定。
   - [ ] local development / test 的 in-memory fallback。
@@ -237,8 +284,11 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] Email 維度連續失敗次數。
   - [ ] 連續失敗達上限後鎖定 `15` 分鐘。
   - [ ] 登入成功後清除該帳號失敗計數。
+- [ ] 建立 `EmailTaskRepository.createPending`，供 Auth 與後續 Service 在業務 Transaction 中建立寄信任務；worker claim 與投遞功能在 Phase 3.5 完成。
 - [ ] 實作 `POST /auth/activation/:token`：
   - [ ] 驗證 activation token hash 與到期時間。
+  - [ ] 套用 activation API 的 IP rate limit。
+  - [ ] 套用共用密碼規則。
   - [ ] 設定 Argon2id password hash。
   - [ ] 清除 activation token hash 與到期時間。
   - [ ] 寫入 `activated_at`。
@@ -250,10 +300,25 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 套用 password reset rate limit。
 - [ ] 實作 `POST /auth/password-reset/:token`：
   - [ ] 驗證 password reset token hash 與到期時間。
+  - [ ] 套用共用密碼規則。
   - [ ] 更新 Argon2id password hash。
   - [ ] 清除 password reset token hash 與到期時間。
   - [ ] 撤銷該使用者既有 session。
   - [ ] 建立 `user.password_reset_completed` audit log。
+- [ ] 建立共用密碼 schema / policy：
+  - [ ] 長度至少 `12` 字元。
+  - [ ] 禁止常見弱密碼。
+  - [ ] 不允許與 Email local part 完全相同。
+- [ ] 補 Auth 自動化測試：
+  - [ ] Login 成功、失敗與不洩漏帳號狀態的回應。
+  - [ ] Session cookie 的 `HttpOnly`、`Secure`、`SameSite`、`Path` 與有效期限。
+  - [ ] Session 閒置期限、絕對期限與 revoked session。
+  - [ ] Logout 撤銷目前 session。
+  - [ ] CSRF token 取得、輪替、缺漏與錯誤 token。
+  - [ ] advisor / reviewer / admin permission mapping 與 `403 forbidden`。
+  - [ ] Login IP rate limit、Email 失敗鎖定與登入成功後清除計數。
+  - [ ] Activation token 過期、使用後失效與密碼規則。
+  - [ ] Password reset 不洩漏 Email、token 過期、使用後失效、撤銷 session 與 audit log。
 
 完成條件：
 
@@ -262,6 +327,34 @@ REDIS_URL=redis://pr_b_redis:6379
 - 權限不足的 API 會回傳 `403 forbidden`。
 - Login、activation 與 password reset 具備第一版 rate limit 與不洩漏帳號狀態的錯誤回應。
 - 帳號啟用與密碼重設流程會建立必要 email tasks 並清除 token hash。
+- Auth、Session、CSRF、Permission、Rate Limit、Activation 與 Password Reset 具有自動化測試。
+
+## Phase 3.5：最小 Email Delivery 基礎
+
+目標：讓 Phase 3 建立的 password reset email task，以及 Phase 4 建立的 account activation email task 可以實際寄送。此階段只建立可用的最小投遞能力；提醒排程、手動重寄與故障維運留在 Phase 10。
+
+- [ ] 建立 `EmailTaskRepository`：
+  - [ ] 沿用 Phase 3 的 `createPending`，補齊 worker 所需查詢與狀態更新。
+  - [ ] 使用 `FOR UPDATE SKIP LOCKED` claim `scheduled_at <= NOW()` 的 pending tasks。
+  - [ ] 標記 `sent` 並寫入 `sent_at`。
+  - [ ] 寄送失敗時增加 `attempt_count` 並寫入安全處理後的 `last_error`。
+  - [ ] 未達重試上限時重新排程為 `pending`，達上限時標記為 `failed`。
+- [ ] 建立 Email provider / sender adapter，Service 與 worker 不直接綁定特定寄信套件。
+- [ ] 建立 account activation 與 password reset Email template mapping。
+- [ ] 建立可單次執行的 worker function，排程器只負責定期呼叫，方便測試與安全停止。
+- [ ] 確保 Email payload、application log 與 `last_error` 不保存或輸出密碼、token hash、SMTP credential；原始一次性 token 只可存在需要寄出的連結 payload，寄送與錯誤 log 不得輸出。
+- [ ] 補最小 worker 測試：
+  - [ ] 只 claim 已到 `scheduled_at` 的 pending task。
+  - [ ] 平行 worker 不會取得同一筆 task。
+  - [ ] 寄送成功改為 `sent`。
+  - [ ] 可重試錯誤會重新排程。
+  - [ ] 達上限後改為 `failed`。
+
+完成條件：
+
+- Password reset 與 account activation email task 可以從 `pending` 被 worker 寄送並更新為 `sent`。
+- Worker crash 或寄送失敗不會造成同一筆 task 被無限制重複寄送。
+- Phase 4 建立帳號後，啟用信可以完成實際投遞，不只停留在資料庫 task。
 
 ## Phase 4：管理員最小後台能力
 
@@ -285,10 +378,15 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] activate / deactivate advisor
   - [ ] assign director
 - [ ] 對使用者、指導老師與主任異動建立 `audit_logs`。
+- [ ] 補管理員最小能力測試：
+  - [ ] 初始管理員維運指令、唯一啟用管理員與 audit log。
+  - [ ] 建立／停用使用者會建立或撤銷必要 token、session、email task 與 audit log。
+  - [ ] 指導老師建立、停用與主任異動的權限、constraint 與 audit log。
 
 完成條件：
 
 - 系統可以建立承辦人、管理員與指導老師帳號。
+- 建立帳號後可透過 Phase 3.5 Email worker 寄出啟用信，並由 Phase 3 activation API 完成首次密碼設定。
 - 前台可查詢可選指導老師資料所需的基礎資料已具備。
 
 ## Phase 5：規則與公開送件
@@ -313,6 +411,14 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 更新 `current_version_id`。
   - [ ] 建立附件 metadata。
   - [ ] 建立老師簽核通知與提醒 `email_tasks`。
+- [ ] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；建立申請 API 套用第一版 IP rate limit。
+- [ ] 補規則與公開送件測試：
+  - [ ] 有效期間規則查詢、人數上下限與四類點數計算。
+  - [ ] 四類 Zod discriminated union 與跨欄位驗證。
+  - [ ] 送件成功建立主表、參與者、專屬資料、版本、附件與 email tasks。
+  - [ ] 任一步驟失敗時資料庫 rollback，已寫入的新檔案會清理。
+  - [ ] 檔案類型、大小、數量、storage key 與路徑穿越防護。
+  - [ ] 建立申請 rate limit。
 
 完成條件：
 
@@ -339,6 +445,10 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 狀態改為 `rejected`
   - [ ] 寫入 `closed_at`
   - [ ] 建立拒絕通知
+- [ ] 補指導老師流程測試：
+  - [ ] 只能讀取與處理自己的申請。
+  - [ ] 狀態、簽核期限、重複簽名與 reason 驗證。
+  - [ ] 簽名成功／拒絕的狀態、review action、signature、email task 與檔案 rollback。
 
 完成條件：
 
@@ -372,6 +482,13 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 reject。
 - [ ] 實作 adjust before approval。
 - [ ] 實作 approve。
+- [ ] 對 public revision get / submit 套用第一版 IP rate limit。
+- [ ] 補承辦人審核與補件測試：
+  - [ ] Review queue/detail 的權限、分頁與資料範圍。
+  - [ ] 補件 token 錯誤、過期、使用後失效與延長期限。
+  - [ ] 補件建立新版本、失效舊簽名、清除 token 並重新建立老師通知。
+  - [ ] 核准／拒絕／調整前的狀態、reason、點數與有效簽名驗證。
+  - [ ] 同一申請被多位承辦人同時處理時只允許一筆成功。
 
 完成條件：
 
@@ -395,6 +512,13 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] pagination
   - [ ] sorting
   - [ ] 姓名與學號遮罩
+- [ ] 對公開學生點數查詢套用 query 長度、分頁上限與第一版 IP rate limit。
+- [ ] 補點數流水帳與公開查詢測試：
+  - [ ] 核准時每位參與者只建立一筆 award，且正確保存學生快照。
+  - [ ] `student_points_summary` 依學年度、年級、班級與學生正確分組加總。
+  - [ ] 公開 response 只回傳遮罩後姓名與學號。
+  - [ ] 兩筆證照同時核准時，advisory lock 可防止累積點數超限。
+  - [ ] 公開查詢 rate limit。
 
 完成條件：
 
@@ -416,6 +540,12 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 更新 request status
 - [ ] 實作 admin reject。
 - [ ] 建立對應 audit logs 與 email tasks。
+- [ ] 補點數異動測試：
+  - [ ] 同一目標交易只能有一筆 pending change request。
+  - [ ] adjustment / reversal 規則與學生來源點數不得低於 `0`。
+  - [ ] 管理員核准會建立新流水帳、更新 request、audit log 與 email task。
+  - [ ] 管理員拒絕不建立流水帳。
+  - [ ] 平行核准同一 change request 只允許一筆成功。
 
 完成條件：
 
@@ -424,14 +554,11 @@ REDIS_URL=redis://pr_b_redis:6379
 
 ## Phase 10：背景任務、私有檔案與測試收斂
 
-目標：補齊非同步流程、安全檔案讀取與第一版測試門檻。
+目標：在各 Phase 已有對應測試的前提下，補齊非同步維運流程、安全檔案讀取、跨模組回歸與第一版上線門檻。
 
-- [ ] 實作 Email worker：
-  - [ ] claim pending tasks
-  - [ ] sent
-  - [ ] retry
-  - [ ] failed
-  - [ ] email delivery failed notification
+- [ ] 擴充 Phase 3.5 Email worker 維運能力：
+  - [ ] email delivery permanently failed notification。
+  - [ ] worker 啟動、停止與健康狀態整合。
 - [ ] 實作 expired session cleanup job。
 - [ ] 實作手動 retry failed email task。
 - [ ] 實作 stale processing email task maintenance。
@@ -439,26 +566,27 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 revision expired job。
 - [ ] 實作 private attachment read API。
 - [ ] 實作 private advisor signature read API。
-- [ ] 補 migration tests。
-- [ ] 補 repository tests。
-- [ ] 補 service integration tests。
-- [ ] 補 API tests。
-- [ ] 補 concurrency tests。
+- [ ] 確認各 Phase migration / repository / service / API tests 已隨功能完成，不在本階段才第一次補測試。
+- [ ] 補跨模組回歸測試。
+- [ ] 補完整 concurrency tests。
+- [ ] 建立 CI 第一版最低門檻：build、migration verification、unit、repository、service、API 與 concurrency tests。
 
 完成條件：
 
 - Email、逾期作廢與私有檔案流程可被測試覆蓋。
 - 第一版核心流程可在測試資料庫穩定重跑。
+- CI 可從乾淨環境建立 schema、執行 seed、跑完第一版必要測試並阻止失敗版本進入部署流程。
 
-## 建議第一個 Sprint
+## 目前補強 Sprint
 
-第一個 Sprint 建議聚焦在資料庫與後端基礎，不先碰完整申請流程。
+Phase 1 資料庫與 Phase 3 Auth 基礎已部分實作，但前置啟動邊界與測試基礎尚未完成。繼續擴充 Auth API 前，建議依下列順序補強：
 
-- [ ] 安裝 `pg` 與 `node-pg-migrate`。
-- [ ] 建立 migration scripts。
-- [ ] 建立 extensions、trigger function、`users`、`advisors`、規則表與 `point_applications` 相關 migration。
-- [ ] 建立 PostgreSQL pool 與 transaction helper。
-- [ ] 建立 Repository function 慣例。
-- [ ] 建立最小 seed 與 migration 驗證方式。
+- [ ] 完成 Phase 0 PostgreSQL app / server 啟動分離與 legacy Mongo 隔離。
+- [ ] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
+- [ ] 建立 Phase 1 migration verification command 並納入 test script。
+- [ ] 完成 Phase 2 CORS、body limit、trusted proxy、client IP 與敏感 log 設定。
+- [ ] 為目前已完成的 transaction、validation、constraint mapping、Session、CSRF 與 Permission 補測試。
+- [ ] 再繼續 Phase 3 Auth rate limit、登入失敗防護、Activation 與 Password Reset。
+- [ ] 完成 Phase 3.5 最小 Email worker 後，再進入 Phase 4 帳號管理。
 
-Sprint 完成後，下一步再進入 Auth / Session 與公開送件。
+此 Sprint 完成後，PostgreSQL 新主流程才能在沒有舊 Mongo 系統的情況下獨立啟動，後續 Auth 與管理員流程也會有可持續執行的自動化驗證基礎。
