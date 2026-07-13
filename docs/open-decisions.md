@@ -124,7 +124,7 @@ Transaction 與併發控制初版已整理於 [Transaction 與併發控制](tran
 - Session 閒置有效期限建議 `8` 小時，絕對有效期限建議 `7` 天。
 - 登出、帳號停用、密碼重設、角色變更、管理員移交與管理員復原都必須撤銷相關 session。
 - 帳號啟用 token 有效期限建議 `24` 小時；密碼重設 token 有效期限建議 `30` 分鐘。
-- 密碼長度至少 `12` 字元，密碼雜湊優先使用 Argon2id。
+- 密碼長度至少 `12` 字元，密碼雜湊使用 Argon2id；第一版參數為 `memoryCost = 65536 KiB`、`timeCost = 3`、`parallelism = 1`。
 - 使用 cookie session 的 state-changing API 必須有 CSRF 防護。
 - CSRF token 綁定 `user_sessions`，資料庫只保存 `csrf_token_hash`；前端透過 `GET /auth/csrf-token` 取得，並以 `X-CSRF-Token` header 帶回。
 - 第一版不開放任意 CORS；正式環境 CORS allowlist 必須明確設定。
@@ -135,7 +135,6 @@ Transaction 與併發控制初版已整理於 [Transaction 與併發控制](tran
 仍需實作時確認：
 
 - Redis rate limit key 命名、window 設定與 middleware 套件。
-- Argon2id/bcrypt 的實際參數。
 - Session cookie 名稱與 domain。
 
 ### 建議確認順序

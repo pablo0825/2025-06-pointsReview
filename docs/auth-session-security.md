@@ -117,7 +117,18 @@ Authentication Middleware 每次驗證都必須檢查：
 - 禁止常見弱密碼，例如 `password123`。
 - 不允許與 Email local part 完全相同。
 
-密碼雜湊建議使用 Argon2id；若環境暫不支援，才退而使用 bcrypt，成本參數需依部署環境壓測設定。
+密碼雜湊使用 Argon2id。第一版參數：
+
+```text
+type = argon2id
+memoryCost = 65536 KiB
+timeCost = 3
+parallelism = 1
+```
+
+Argon2id 雜湊字串會保存演算法、版本、成本參數與 salt，資料庫的 `users.password_hash` 只需保存完整雜湊字串。驗證密碼時由 Argon2 library 解析雜湊字串中的參數；若未來調整參數，可透過 `needsRehash` 判斷使用者下次成功登入後是否要重新雜湊。
+
+若部署環境不支援 Argon2id，才另行討論是否暫時退回 bcrypt，並需重新記錄原因與成本參數。
 
 ## 登入失敗防護
 
@@ -274,5 +285,4 @@ Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態
 ## 尚待實作時確認
 
 - Redis rate limit key 命名、window 設定與 middleware 套件。
-- Argon2id/bcrypt 的實際參數。
 - Session cookie 名稱與 domain。

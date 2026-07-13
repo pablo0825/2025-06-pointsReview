@@ -213,7 +213,7 @@ REDIS_URL=redis://pr_b_redis:6379
 
 目標：完成登入後 API 的基礎身分驗證與授權。
 
-- [ ] 實作密碼雜湊策略，優先 Argon2id；若先使用 bcrypt，需記錄原因與參數。
+- [x] 實作密碼雜湊策略，使用 Argon2id。
 - [ ] 建立 `UserRepository`。
 - [ ] 建立 `SessionRepository`。
 - [ ] 實作 `POST /auth/login`。
