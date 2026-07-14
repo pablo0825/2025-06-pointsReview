@@ -224,11 +224,11 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] ip address
   - [x] user agent
   - [x] current user
-- [ ] 建立測試基礎：
-  - [ ] 選定並設定 test runner。
-  - [ ] 建立獨立 PostgreSQL test database 設定與防止連到 production 的檢查。
-  - [ ] 建立 repository / service transaction rollback test helper。
-  - [ ] 建立 API test 可直接載入的 Express app。
+- [x] 建立測試基礎：
+  - [x] 選定並設定 test runner。
+  - [x] 建立獨立 PostgreSQL test database 設定與防止連到 production 的檢查。
+  - [x] 建立 repository / service transaction rollback test helper。
+  - [x] 建立 API test 可直接載入的 Express app。
 - [ ] 建立最小應用程式啟動檢查：
   - [ ] 啟動時驗證 PostgreSQL 可連線。
   - 備註：完整 graceful shutdown、worker lifecycle 與 health / readiness endpoint 延後到 Phase 10 / 部署前處理，避免在 Redis、Email worker 與 legacy Mongo 策略未穩定前過早實作。

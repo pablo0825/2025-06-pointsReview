@@ -30,7 +30,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(express.static(path.join(__dirname, "public")));
 
   if (options.legacyMongoRoutes) {
-    app.use("/api/form/competition", options.legacyMongoRoutes.competitionFormRoute);
+    app.use(
+      "/api/form/competition",
+      options.legacyMongoRoutes.competitionFormRoute,
+    );
     app.use(
       "/api/admin/form/competition",
       options.legacyMongoRoutes.competitionFormAdminRoute,
