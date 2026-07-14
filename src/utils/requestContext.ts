@@ -1,6 +1,7 @@
 import type { Request } from "express";
 
 import { isRole, type Role } from "../auth/permissions";
+import { getClientIp } from "./clientIp";
 
 export interface CurrentUser {
   id: string;
@@ -12,20 +13,6 @@ export interface RequestContext {
   ipAddress: string | null;
   userAgent: string | null;
   currentUser: CurrentUser | null;
-}
-
-function getForwardedIp(req: Request): string | undefined {
-  const forwardedFor = req.headers["x-forwarded-for"];
-
-  if (typeof forwardedFor === "string") {
-    return forwardedFor.split(",")[0]?.trim();
-  }
-
-  if (Array.isArray(forwardedFor)) {
-    return forwardedFor[0]?.split(",")[0]?.trim();
-  }
-
-  return undefined;
 }
 
 function getCurrentUser(req: Request): CurrentUser | null {
@@ -45,7 +32,7 @@ function getCurrentUser(req: Request): CurrentUser | null {
 
 export function getRequestContext(req: Request): RequestContext {
   return {
-    ipAddress: getForwardedIp(req) ?? req.ip ?? null,
+    ipAddress: getClientIp(req),
     userAgent: req.get("user-agent") ?? null,
     currentUser: getCurrentUser(req),
   };

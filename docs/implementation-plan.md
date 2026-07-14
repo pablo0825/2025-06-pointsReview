@@ -232,10 +232,10 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 建立最小應用程式啟動檢查：
   - [ ] 啟動時驗證 PostgreSQL 可連線。
   - 備註：完整 graceful shutdown、worker lifecycle 與 health / readiness endpoint 延後到 Phase 10 / 部署前處理，避免在 Redis、Email worker 與 legacy Mongo 策略未穩定前過早實作。
-- [ ] 建立 HTTP 安全邊界：
-  - [ ] JSON / URL-encoded request body 大小限制。
-  - [ ] 建立統一 client IP helper；目前不直接信任任意來源的 `X-Forwarded-For`，正式 reverse proxy 與 `trust proxy` 設定延後到 Phase 10。
-  - [ ] Log 遮罩密碼、原始 token、token hash、session token、CSRF token 與 SQL error 原文。
+- [x] 建立 HTTP 安全邊界：
+  - [x] JSON / URL-encoded request body 大小限制。
+  - [x] 建立統一 client IP helper；目前不直接信任任意來源的 `X-Forwarded-For`，正式 reverse proxy 與 `trust proxy` 設定延後到 Phase 10。
+  - [x] Log 遮罩密碼、原始 token、token hash、session token、CSRF token 與 SQL error 原文。
 - [ ] 補共用骨架測試：
   - [ ] transaction callback 成功時 commit、失敗時 rollback。
   - [ ] Zod params / query / body 驗證與 `validation_failed` response。

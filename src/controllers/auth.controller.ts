@@ -1,9 +1,10 @@
 import type { Request, Response } from "express";
 
 import { AuthService } from "../services/auth.service";
+import { getClientIp } from "../utils/clientIp";
 
 function getRequiredRequestIp(req: Request): string {
-  return req.ip ?? req.socket.remoteAddress ?? "0.0.0.0";
+  return getClientIp(req) ?? "0.0.0.0";
 }
 
 function getRequiredUserAgent(req: Request): string {

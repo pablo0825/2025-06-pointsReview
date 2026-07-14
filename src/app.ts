@@ -18,14 +18,16 @@ interface CreateAppOptions {
   legacyMongoRoutes?: LegacyMongoRoutes;
 }
 
+const REQUEST_BODY_LIMIT = "1mb";
+
 export function createApp(options: CreateAppOptions = {}) {
   const app = express();
 
   app.use(cors());
   app.use(helmet());
   app.use(logger("dev"));
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: false }));
+  app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: false, limit: REQUEST_BODY_LIMIT }));
   app.use(cookieParser());
   app.use(express.static(path.join(__dirname, "public")));
 

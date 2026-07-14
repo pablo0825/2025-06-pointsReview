@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { createInternalError, isApiError, ApiError } from "../errors/apiError";
 import { createApiErrorFromPostgresError } from "../errors/postgresError";
 import { createValidationApiError } from "../errors/zodError";
+import { getSafeErrorSummary } from "../utils/safeLogging";
 
 function createHttpApiError(error: unknown): ApiError | undefined {
   if (!isHttpError(error)) {
@@ -16,10 +17,6 @@ function createHttpApiError(error: unknown): ApiError | undefined {
   }
 
   return undefined;
-}
-
-function getErrorName(error: unknown): string {
-  return error instanceof Error ? error.name : typeof error;
 }
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
@@ -34,7 +31,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     console.error("Unexpected error", {
       method: req.method,
       path: req.originalUrl,
-      errorName: getErrorName(error),
+      error: getSafeErrorSummary(error),
     });
   }
 
