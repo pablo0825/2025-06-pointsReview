@@ -54,6 +54,8 @@ PostgreSQL constraint 是資料正確性的最後防線，API 不直接回傳 SQ
 - Service 專屬 constraint 由各 Service 在實作時提供 mapping，因為同一個 constraint 在不同操作中可能代表不同業務語意，也可能需要不同 HTTP status 或欄位錯誤訊息。
 - Service 應優先在寫入資料庫前做可理解的業務驗證；DB constraint 用來處理併發、漏網輸入或程式錯誤造成的最後防線。
 - 未映射的 PostgreSQL constraint error 不應回傳給使用者，統一轉為 `internal_error`，log 只記錄安全摘要，不輸出 SQL error 原文或 stack trace。
+- 第一版 constraint error mapping 先依 PostgreSQL 回傳的 `constraint` 名稱判斷，不額外檢查 SQLSTATE `error.code`。目前已命名的 constraint 與 index 足以支撐第一版錯誤轉換；若未來需要更嚴格區分 unique violation、exclusion violation、check violation 或 foreign key violation，再將 `error.code` 納入 mapping 條件。
+- 第一版新 PostgreSQL API 不保留舊 `AppError` / legacy error 的相容轉換層。新實作應明確丟出 `ApiError`、`ZodError` 或可映射的 PostgreSQL constraint error；其他未預期錯誤一律回 `internal_error`。
 
 例如同一筆申請中重複學生的 unique constraint，可能在建立申請 API 中回傳欄位錯誤，也可能在補件流程中回傳狀態或版本衝突；這類情境必須由對應 Service 判斷，不放在全域 mapping 寫死。
 

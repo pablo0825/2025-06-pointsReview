@@ -218,6 +218,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - 目前先建立 PostgreSQL constraint error 的共用轉換 helper。
   - 已內建文件中已確認的共用 constraint mapping，例如 Email 重複、點數規則期間重疊、唯一啟用管理員與主任衝突。
   - 各 Service 的細部 constraint error mapping 仍依實作時的業務情境補上，不在此階段猜測。
+  - 第一版不保留舊 `AppError` / legacy error 的相容轉換層；新 PostgreSQL API 應統一使用 `ApiError`、`ZodError` 或 PostgreSQL constraint error mapping。
 - [x] 建立 Zod validation middleware：
   - [x] params
   - [x] query

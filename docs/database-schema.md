@@ -55,6 +55,7 @@ CREATE TABLE users (
   CONSTRAINT users_role_check
     CHECK (role IN ('advisor', 'reviewer', 'admin')),
 
+-- LOWER 轉小寫; BTRIM 移除開頭, 結尾空白
   CONSTRAINT users_email_normalized_check
     CHECK (email = LOWER(BTRIM(email))),
 
