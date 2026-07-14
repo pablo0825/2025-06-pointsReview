@@ -80,6 +80,7 @@ const baseActiveSessionSelect = `
   JOIN users u ON u.id = s.user_id
 `;
 
+// 建立一筆新的使用者 session，保存 session / CSRF token hash 與登入環境資訊。
 export async function createSession(
   client: DatabaseClient,
   input: CreateSessionInput,
@@ -122,6 +123,7 @@ export async function createSession(
   return result.rows[0];
 }
 
+// 依 session token hash 查詢目前仍有效、未撤銷且使用者仍啟用的 session。
 export async function findActiveSessionByTokenHash(
   client: DatabaseClient,
   sessionTokenHash: Buffer,
@@ -140,6 +142,7 @@ export async function findActiveSessionByTokenHash(
   return result.rows[0] ?? null;
 }
 
+// 依 session id 查詢單筆 session，不限制是否已過期或撤銷。
 export async function findById(
   client: DatabaseClient,
   sessionId: string,
@@ -154,6 +157,7 @@ export async function findById(
   return result.rows[0] ?? null;
 }
 
+// 更新有效 session 的 last_seen_at，用來記錄最近一次使用時間。
 export async function touchSessionLastSeen(
   client: DatabaseClient,
   sessionId: string,
@@ -185,6 +189,7 @@ export async function touchSessionLastSeen(
   return result.rows[0] ?? null;
 }
 
+// 撤銷單一 session，例如使用者登出目前裝置。
 export async function revokeSession(
   client: DatabaseClient,
   sessionId: string,
@@ -218,6 +223,7 @@ export async function revokeSession(
   return result.rows[0] ?? null;
 }
 
+// 撤銷某個使用者所有尚未撤銷的 session，例如帳號停用或密碼重設。
 export async function revokeUserSessions(
   client: DatabaseClient,
   userId: string,
@@ -238,6 +244,7 @@ export async function revokeUserSessions(
   return result.rowCount ?? 0;
 }
 
+// 更新有效 session 綁定的 CSRF token hash，原始 CSRF token 不寫入資料庫。
 export async function updateCsrfTokenHash(
   client: DatabaseClient,
   sessionId: string,
