@@ -239,6 +239,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 建立應用程式啟動與停止生命週期：
   - [ ] 啟動時驗證 PostgreSQL 可連線。
   - [ ] `SIGTERM` / `SIGINT` 停止接收請求並關閉 PostgreSQL pool。
+    - 備註：完整 graceful shutdown 先不在目前階段實作，等新 PostgreSQL 主流程、背景 jobs 與 legacy Mongo 啟用策略更穩定後，於部署前補齊。屆時至少需處理 `server.close()`、`closePool()`、legacy Mongo connection 關閉，以及背景 jobs 停止或確認不阻塞 process exit。
   - [ ] 建立 health / readiness endpoint，readiness 必須反映必要服務是否可用。
 - [ ] 建立 HTTP 安全邊界：
   - [ ] JSON / URL-encoded request body 大小限制。
