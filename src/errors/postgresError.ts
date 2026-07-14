@@ -57,7 +57,7 @@ const defaultConstraintMappings: ConstraintErrorMappings = {
 };
 
 function isPostgresErrorLike(error: unknown): error is PostgresErrorLike {
-  return typeof error === "object" && error !== null && "code" in error;
+  return typeof error === "object" && error !== null;
 }
 
 export function createApiErrorFromPostgresError(

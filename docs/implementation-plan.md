@@ -236,11 +236,11 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] JSON / URL-encoded request body 大小限制。
   - [x] 建立統一 client IP helper；目前不直接信任任意來源的 `X-Forwarded-For`，正式 reverse proxy 與 `trust proxy` 設定延後到 Phase 10。
   - [x] Log 遮罩密碼、原始 token、token hash、session token、CSRF token 與 SQL error 原文。
-- [ ] 補共用骨架測試：
-  - [ ] transaction callback 成功時 commit、失敗時 rollback。
-  - [ ] Zod params / query / body 驗證與 `validation_failed` response。
-  - [ ] 已映射與未映射 PostgreSQL constraint error。
-  - [ ] request context 在直連情境取得正確 IP，且不直接信任外部偽造的 `X-Forwarded-For`。
+- [x] 補共用骨架測試：
+  - [x] transaction callback 成功時 commit、失敗時 rollback。
+  - [x] Zod params / query / body 驗證與 `validation_failed` response。
+  - [x] 已映射與未映射 PostgreSQL constraint error。
+  - [x] request context 在直連情境取得正確 IP，且不直接信任外部偽造的 `X-Forwarded-For`。
 
 完成條件：
 
