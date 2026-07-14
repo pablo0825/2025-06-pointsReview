@@ -13,78 +13,112 @@ import {
   resendTeacherToken,
 } from "../controllers/competitionForm.admin.controller";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
+import { authenticateSession } from "../middlewares/authentication.middleware";
+import { csrfProtection } from "../middlewares/csrf.middleware";
+import {
+  requireAnyPermission,
+  requirePermission,
+} from "../middlewares/permission.middleware";
 
 const router = Router();
-const authMiddleware = require("../middlewares/auth.middleware");
+
+const canListApplications = requireAnyPermission([
+  "applications.review.list",
+  "applications.all.list",
+]);
+const canReadApplications = requireAnyPermission([
+  "applications.review.read",
+  "applications.all.read",
+]);
+const canReviewApplications = requireAnyPermission([
+  "applications.revision.request",
+  "applications.approve",
+  "applications.reject",
+  "applications.all.read",
+]);
+const canExtendRevision = requireAnyPermission([
+  "applications.revision.extend",
+  "applications.all.read",
+]);
+const canReadAttachments = requirePermission("applications.attachments.read");
+const canAdminReadApplications = requirePermission("applications.all.read");
 
 router.get(
   "/",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  canListApplications,
   asyncHandler(getAllFormData)
 );
 router.get(
   "/:id",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  canReadApplications,
   asyncHandler(getFormById)
 );
 
 router.patch(
   "/:id/revise",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canReviewApplications,
   asyncHandler(reviseFormById)
 );
 router.post(
   "/:id/approve",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canReviewApplications,
   asyncHandler(approveFormById)
 );
 router.post(
   "/:id/reject",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canReviewApplications,
   asyncHandler(rejectFormByID)
 );
 
 router.post(
   "/:id/extend-expiration",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canExtendRevision,
   asyncHandler(extendExpiryDateById)
 );
 router.post(
   "/:id/lock",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canAdminReadApplications,
   asyncHandler(lockFormById)
 );
 router.post(
   "/:id/unlock",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canAdminReadApplications,
   asyncHandler(unlockFormById)
 );
 
 router.delete(
   "/:id/files",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission("admin"),
+  authenticateSession,
+  csrfProtection,
+  canAdminReadApplications,
   asyncHandler(deleteSingleFileById)
 );
 router.get(
   "/:id/download/:fileName",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  canReadAttachments,
   asyncHandler(downloadSingleFile)
 );
 
 router.post(
   "/:id/resend",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["handle", "admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  canReviewApplications,
   asyncHandler(resendTeacherToken)
 );
 

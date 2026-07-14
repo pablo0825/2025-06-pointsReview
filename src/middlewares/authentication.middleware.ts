@@ -42,8 +42,12 @@ export const authenticateSession: RequestHandler = async (req, _res, next) => {
 
   req.user = {
     id: session.user_id,
+    name: session.user_display_name,
+    username: session.user_display_name,
+    displayName: session.user_display_name,
     email: session.user_email,
     role: session.user_role,
+    roles: [session.user_role],
   };
 
   next();

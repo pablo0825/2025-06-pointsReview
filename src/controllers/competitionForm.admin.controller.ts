@@ -573,9 +573,9 @@ export const downloadSingleFile = async (req: Request, res: Response) => {
 
   form.updatedAt = new Date();
   form.history.push({
-    type: userName,
+    type: "updated",
     timestamp: new Date(),
-    user: "承辦人",
+    user: userName,
     detail: `已下載：${fileName}`,
   });
 

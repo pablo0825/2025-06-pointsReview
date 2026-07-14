@@ -1,4 +1,4 @@
-// auth.route.ts
+// user.admin.route.ts
 import express from "express";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
 import {
@@ -8,34 +8,38 @@ import {
   updatedUserDataById,
   getMe,
 } from "../controllers/user/user.admin.controller";
-
-const authMiddleware = require("../middlewares/auth.middleware");
+import { authenticateSession } from "../middlewares/authentication.middleware";
+import { csrfProtection } from "../middlewares/csrf.middleware";
+import { requirePermission } from "../middlewares/permission.middleware";
 
 const router = express.Router();
 
 router.get(
   "/",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin", "director"]),
+  authenticateSession,
+  requirePermission("users.list"),
   asyncHandler(getAllUserData)
 );
 router.put(
   "/edit/:id",
-  authMiddleware.authenticateToken,
+  authenticateSession,
+  csrfProtection,
   asyncHandler(updatedUserDataById)
 );
 router.patch(
   "/:id/role",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.update"),
   asyncHandler(assignRoleById)
 );
 router.delete(
   "/:id/delete",
-  authMiddleware.authenticateToken,
-  authMiddleware.hasPermission(["admin", "director"]),
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.deactivate"),
   asyncHandler(deleteUserById)
 );
-router.get("/me", authMiddleware.authenticateToken, asyncHandler(getMe));
+router.get("/me", authenticateSession, asyncHandler(getMe));
 
 export default router;

@@ -16,8 +16,6 @@ import cookieParser from "cookie-parser";
 import competitionFormRoute from "./routes/competitionForm.route";
 import competitionFormAdminRoute from "./routes/competitionForm.admin.route";
 import authRoute from "./routes/auth.route";
-import newAuthRoute from "./routes/newAuth.route";
-import userAdminRoute from "./routes/user.admin.route";
 import { AppError } from "./utils/AppError";
 import { startEmailQueueJob } from "./jobs/emailQueue.job";
 import { startAdvisorTokenExpiryJob } from "./jobs/advisorTokenExpiry.job";
@@ -36,18 +34,6 @@ if (!process.env.DATABASE || !process.env.DATABASE_PASSWORD) {
     500,
     "false",
     "❌ DATABASE 或 DATABASE_PASSWORD 環境變數未設定",
-  );
-}
-
-if (
-  !process.env.JWT_ACCESS_SECRET ||
-  !process.env.JWT_REFRESH_SECRET ||
-  !process.env.JWT_RESET_SECRET
-) {
-  throw new AppError(
-    500,
-    "false",
-    "❌ JWT_ACCESS_SECRET, JWT_REFRESH_SECRET 或 JWT_RESET_SECRET 環境變數未設定",
   );
 }
 
@@ -102,9 +88,7 @@ app.use(express.static(path.join(__dirname, "public")));
 /* 註冊路由 */
 app.use("/api/form/competition", competitionFormRoute);
 app.use("/api/admin/form/competition", competitionFormAdminRoute);
-app.use("/api/auth", authRoute);
-app.use("/api/admin/users", userAdminRoute);
-app.use("/auth", newAuthRoute);
+app.use("/auth", authRoute);
 
 /*  */
 startEmailQueueJob();

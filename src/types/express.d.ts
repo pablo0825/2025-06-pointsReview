@@ -1,13 +1,16 @@
 //express.d.ts
 import { Request } from "express";
-import { JwtPayload } from "jsonwebtoken";
 
 import type { Role } from "../auth/permissions";
 
-interface CustomUserPayload extends JwtPayload {
+interface CustomUserPayload {
   id: string;
+  name?: string;
+  username?: string;
+  displayName?: string;
   email: string;
   role?: string;
+  roles?: string[];
 }
 
 interface AuthenticatedRequestContext {
