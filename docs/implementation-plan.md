@@ -100,19 +100,23 @@ src/middlewares/validateRequest.middleware.ts
 
 ### Phase 0 實作 Checklist
 
-以下項目是 PostgreSQL 新主流程的啟動前提。評估完成不代表這些改造已完成；在繼續擴充新 API 前應先補齊。
+以下項目是 PostgreSQL 新主流程的啟動前提。評估完成不代表這些改造已完成；在繼續擴充新 API 前應先補齊。過渡期仍需保留尚未替換的 MongoDB 舊 API，但必須用明確開關隔離，避免新 PostgreSQL 主流程被 MongoDB 啟動條件、舊 routes 或舊 jobs 綁住。
 
-- [ ] 將 Express app 組裝與程序啟動拆開，例如 `createApp()` / `startServer()`，讓 API test 載入 app 時不會自動 listen、連線 MongoDB 或啟動 jobs。
-- [ ] 新 PostgreSQL 主流程只以 `DATABASE_URL` 作為資料庫啟動必要條件，不再強制要求 MongoDB `DATABASE` / `DATABASE_PASSWORD`。
-- [ ] 新 PostgreSQL 主流程不再強制要求舊 JWT access / refresh secrets。
-- [ ] 使用明確的 legacy 啟動開關或獨立 entrypoint 隔離舊 Mongo routes、Mongo connection 與舊 jobs；預設啟動新主流程時不得自動載入。
-- [ ] 確認新舊 Auth route 不會在正式部署同時提供兩套不同登入機制。
+- [ ] 將 Express app 組裝與程序啟動拆開，例如 `createApp()` / `startServer()`，讓 API test 載入 app 時不會自動 listen、建立外部連線或啟動 jobs。
+- [ ] 新 PostgreSQL 主流程只以 `DATABASE_URL` 作為資料庫啟動必要條件；未啟用 legacy Mongo 時，不要求 MongoDB `DATABASE` / `DATABASE_PASSWORD`。
+- [x] 新 PostgreSQL 主流程不再強制要求舊 JWT access / refresh secrets。
+- [ ] 使用 `ENABLE_LEGACY_MONGO` 或等效明確開關隔離舊 Mongo routes、Mongo connection 與舊 jobs；預設啟動新主流程時不得自動載入。
+- [ ] 啟用 legacy Mongo 時，才掛載尚未替換的舊 API、建立 MongoDB connection、啟動舊 Mongo jobs，並要求必要的 MongoDB 環境變數。
+- [x] 確認新舊 Auth route 不會在正式部署同時提供兩套不同登入機制。
 - [x] 安裝並註冊 `cookie-parser`，供 server-side session cookie 使用。
-- [ ] 驗證只提供 `DATABASE_URL`、必要的 PostgreSQL 新系統設定時，backend 可以成功啟動。
+- [ ] 驗證只提供 `DATABASE_URL`、必要的 PostgreSQL 新系統設定，且未啟用 legacy Mongo 時，backend 可以成功啟動。
+
+MongoDB 最終移除不屬於 Phase 0 完成前提。等所有舊 API 完成 PostgreSQL 替換後，再移除 Mongoose models、Mongo routes、Mongo jobs、`mongoose` 依賴與 MongoDB 專用環境變數。
 
 完成條件：
 
-- 專案中舊 Mongo 與新 PostgreSQL 實作邊界明確。
+- PostgreSQL 新主流程在未啟用 legacy Mongo 時，不載入 Mongo routes、不建立 Mongo connection、不啟動 Mongo jobs。
+- 舊 Mongo API 可在明確啟用 legacy Mongo 時暫時提供，直到對應 PostgreSQL API 完成替換。
 - PostgreSQL 新主流程不依賴 MongoDB、舊 JWT secrets 或舊 jobs 即可啟動。
 - 測試載入 Express app 時不會產生 listen、外部連線或背景工作等副作用。
 
