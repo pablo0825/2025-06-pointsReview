@@ -29,6 +29,21 @@ Email worker 負責處理 `email_tasks` 中的寄信任務。Worker 定期查詢
 
 完整狀態機、template、`event_key`、worker claim SQL、重試策略與通知失敗政策請參考 [Email Queue 與通知排程](email-queue.md)。
 
+## Graceful Shutdown
+
+完整 graceful shutdown 第一版可於部署前補齊，不在目前 PostgreSQL schema 與 API 骨架階段提前實作。
+
+實作時由 `server.ts` 統一協調應用程式生命週期：
+
+- 監聽 `SIGTERM` 與 `SIGINT`。
+- 呼叫 `server.close()` 停止接收新的 HTTP request。
+- 停止背景 worker claim 新任務，並讓已取得的任務完成或依 timeout 收尾。
+- 關閉 PostgreSQL pool，例如呼叫 `closePool()`。
+- 關閉 Redis connection。
+- 若 legacy Mongo runtime 仍啟用，關閉 Mongo connection 與舊背景 jobs。
+
+`pool.ts` 只負責建立 PostgreSQL pool 並提供 `closePool()`；它不決定何時關閉。關閉時機與關閉順序屬於 `server.ts` 的啟動與終止流程。
+
 ## 相關文件
 
 - 產品行為與狀態流程：[產品流程](product-workflows.md)
