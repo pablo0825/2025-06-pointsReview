@@ -17,4 +17,10 @@ export async function closePool(): Promise<void> {
   await pool.end();
 }
 
+export async function verifyPostgresConnection(
+  client: DatabaseClient = pool,
+): Promise<void> {
+  await client.query("SELECT 1");
+}
+
 export type { DatabaseClient };

@@ -229,8 +229,8 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] 建立獨立 PostgreSQL test database 設定與防止連到 production 的檢查。
   - [x] 建立 repository / service transaction rollback test helper。
   - [x] 建立 API test 可直接載入的 Express app。
-- [ ] 建立最小應用程式啟動檢查：
-  - [ ] 啟動時驗證 PostgreSQL 可連線。
+- [x] 建立最小應用程式啟動檢查：
+  - [x] 啟動時驗證 PostgreSQL 可連線。
   - 備註：完整 graceful shutdown、worker lifecycle 與 health / readiness endpoint 延後到 Phase 10 / 部署前處理，避免在 Redis、Email worker 與 legacy Mongo 策略未穩定前過早實作。
 - [x] 建立 HTTP 安全邊界：
   - [x] JSON / URL-encoded request body 大小限制。
@@ -597,10 +597,10 @@ REDIS_URL=redis://pr_b_redis:6379
 
 Phase 1 資料庫與 Phase 3 Auth 基礎已部分實作，但前置啟動邊界與測試基礎尚未完成。繼續擴充 Auth API 前，建議依下列順序補強：
 
-- [ ] 完成 Phase 0 PostgreSQL app / server 啟動分離與 legacy Mongo 隔離。
-- [ ] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
+- [x] 完成 Phase 0 PostgreSQL app / server 啟動分離與 legacy Mongo 隔離。
+- [x] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
 - [ ] 保留 Phase 1 乾淨資料庫 migration / seed 人工驗證紀錄；自動化 migration verification command 延後到 Phase 10 / 部署前 CI 收斂。
-- [ ] 完成 Phase 2 body limit、client IP helper 與敏感 log 設定；正式 CORS / trusted proxy 延後到 Phase 10 / 部署前。
+- [x] 完成 Phase 2 body limit、client IP helper 與敏感 log 設定；正式 CORS / trusted proxy 延後到 Phase 10 / 部署前。
 - [ ] 為目前已完成的 transaction、validation、constraint mapping、Session、CSRF 與 Permission 補測試。
 - [ ] 再繼續 Phase 3 Auth rate limit、登入失敗防護、Activation 與 Password Reset。
 - [ ] 完成 Phase 3.5 最小 Email worker 後，再進入 Phase 4 帳號管理。

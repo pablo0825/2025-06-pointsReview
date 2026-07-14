@@ -2,6 +2,7 @@ import type { Server } from "http";
 
 import { createApp } from "./app";
 import { env, getLegacyMongoConnectionString } from "./config/env";
+import { verifyPostgresConnection } from "./db/pool";
 
 // 註冊 process 層級錯誤處理，避免未捕捉錯誤安靜地被忽略。
 function registerProcessHandlers(): void {
@@ -50,6 +51,8 @@ async function loadLegacyMongoRuntime() {
 // 啟動 HTTP server；測試可直接使用 createApp()，避免 listen、Mongo 連線與 jobs 自動執行。
 export async function startServer(): Promise<Server> {
   registerProcessHandlers();
+
+  await verifyPostgresConnection();
 
   // 新 PostgreSQL 主流程不依賴舊 Mongo；只有設定開啟時才載入舊 runtime。
   const legacyMongoRuntime = env.enableLegacyMongo
