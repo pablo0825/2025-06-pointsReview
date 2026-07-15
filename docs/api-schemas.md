@@ -1,6 +1,6 @@
 ﻿# API Request / Response Schema
 
-本文件定義第一版 API 的共用 request / response 格式、分頁、錯誤碼、主要 endpoint payload 與欄位命名規則。Zod 驗證責任與跨欄位規則請參考 [Zod 驗證規格](zod-validation.md)；API 分組、權限與 Service 邊界請參考 [API 與 Service 邊界](api-service-boundaries.md)；資料表欄位語意請參考 [資料模型](data-model.md)。
+本文件定義第一版 API 的共用 request / response 格式、分頁、錯誤碼、主要 endpoint payload 與欄位命名規則；標示「第二版預留」的段落不屬於第一版 routes 與驗收範圍。Zod 驗證責任與跨欄位規則請參考 [Zod 驗證規格](zod-validation.md)；API 分組、權限與 Service 邊界請參考 [API 與 Service 邊界](api-service-boundaries.md)；資料表欄位語意請參考 [資料模型](data-model.md)。
 
 ## 共用規則
 
@@ -190,6 +190,49 @@ Zod 驗證錯誤：
 ```
 
 ## 公開 API
+
+### `GET /public/advisors`
+
+回傳目前可供申請人選擇的指導老師。只包含 `advisors.is_active = true`，且關聯帳號已啟用、未停用的資料。
+
+```json
+{
+  "data": [
+    {
+      "id": 10,
+      "name": "陳老師",
+      "titleCode": 6,
+      "department": "多媒體設計系",
+      "isDirector": false
+    }
+  ]
+}
+```
+
+### `GET /public/application-instructions`
+
+Query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `applicationType` | string | 必填，四種申請類型之一 |
+
+只回傳查詢當下 `isVisible = true` 且位於有效期間內的說明，依 `displayOrder`、`id` 排序。
+
+```json
+{
+  "data": [
+    {
+      "sectionKey": "eligibility",
+      "title": "114年度競賽點數辦法",
+      "content": "申請資格與應備資料說明。",
+      "displayOrder": 10,
+      "effectiveFrom": "2025-08-01",
+      "effectiveTo": "2026-07-31"
+    }
+  ]
+}
+```
 
 ### `POST /public/applications`
 
@@ -816,13 +859,15 @@ Request：
 }
 ```
 
-### Email Tasks
+### Email Tasks（第二版預留）
+
+第一版會建立及投遞 Email tasks，但不提供以下管理端查詢與手動重寄 API。
 
 `GET /admin/email-tasks` query：
 
 | 欄位 | 型別 | 說明 |
 | --- | --- | --- |
-| `status` | string | 第一版主要使用 `failed` |
+| `status` | string | 通常查詢 `failed` |
 | `template` | string | 可省略 |
 | `createdFrom` | string | ISO 8601，可省略 |
 | `createdTo` | string | ISO 8601，可省略 |
@@ -876,16 +921,16 @@ Response：
 
 | 欄位 | 型別 | 說明 |
 | --- | --- | --- |
-| `ruleType` | string | `competition`、`project`、`certificate`、`exhibition` |
+| `applicationType` | string | `competition`、`project_participation`、`certificate`、`external_exhibition` |
 | `includeExpired` | boolean | 預設 `false` |
 
-`POST /admin/point-rules` request 使用 `ruleType` discriminated union。
+`POST /admin/point-rules` request 使用 `applicationType` discriminated union。後端依申請類型操作對應的點數規則表。
 
 競賽規則：
 
 ```json
 {
-  "ruleType": "competition",
+  "applicationType": "competition",
   "competitionLevel": "national_integrated",
   "award": "finalist",
   "allocationMethod": "per_person",
@@ -899,9 +944,11 @@ Response：
 
 ```json
 {
-  "ruleType": "project",
+  "applicationType": "project_participation",
   "salaryUnit": 1000,
   "pointsPerUnit": "0.50",
+  "roundingMethod": "floor",
+  "maximumPoints": null,
   "effectiveFrom": "2026-08-01",
   "effectiveTo": null
 }
@@ -911,7 +958,7 @@ Response：
 
 ```json
 {
-  "ruleType": "certificate",
+  "applicationType": "certificate",
   "pointsPerCertificate": "2.00",
   "maximumPointsPerStudent": "4.00",
   "effectiveFrom": "2026-08-01",
@@ -923,7 +970,7 @@ Response：
 
 ```json
 {
-  "ruleType": "exhibition",
+  "applicationType": "external_exhibition",
   "exhibitionType": "project_work",
   "minimumPointsPerPerson": "1.00",
   "maximumPointsPerPerson": "2.00",
@@ -932,7 +979,7 @@ Response：
 }
 ```
 
-`POST /admin/point-rules/:ruleId/deactivate` request：
+`POST /admin/point-rules/:applicationType/:ruleId/deactivate` request：
 
 ```json
 {
@@ -941,7 +988,59 @@ Response：
 }
 ```
 
-### Audit Logs
+已生效或已被申請引用的點數規則不可原地修改。建立新版本後，再以明確的 `applicationType` 與 `ruleId` 設定舊版本失效日期。
+
+### Participant Rules
+
+`GET /admin/application-participant-rules` query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `applicationType` | string | 可省略；指定時只查一種申請 |
+| `includeExpired` | boolean | 預設 `false` |
+
+`POST /admin/application-participant-rules` request：
+
+```json
+{
+  "applicationType": "competition",
+  "minimumParticipants": 1,
+  "maximumParticipants": 10,
+  "effectiveFrom": "2026-08-01",
+  "effectiveTo": null
+}
+```
+
+`minimumParticipants` 與 `maximumParticipants` 都必須是正整數，且最小值不得大於最大值。同一申請類型的有效期間不得重疊。
+
+`POST /admin/application-participant-rules/:ruleId/deactivate` 使用與點數規則相同的 `effectiveTo`、`reason` request 格式。既有申請保留送件時套用的規則結果，新規則只影響有效日起的新送件。
+
+### Application Instructions
+
+`GET /admin/application-instructions` 可使用 `applicationType`、`isVisible`、`includeExpired` 與共用分頁 query。
+
+`POST /admin/application-instructions` request：
+
+```json
+{
+  "applicationType": "competition",
+  "sectionKey": "eligibility",
+  "title": "114年度競賽點數辦法",
+  "content": "申請資格與應備資料說明。",
+  "displayOrder": 10,
+  "isVisible": false,
+  "effectiveFrom": "2025-08-01",
+  "effectiveTo": "2026-07-31"
+}
+```
+
+`PATCH /admin/application-instructions/:instructionId` 接收上述可修改欄位的部分集合，但 body 至少要有一個欄位。尚未生效的說明可修改內容與有效期間；已生效的說明不原地改寫 `applicationType`、`sectionKey`、`title`、`content` 或有效期間，需建立新資料保留歷史。`displayOrder` 可獨立調整。
+
+`POST /admin/application-instructions/:instructionId/show` 與 `/hide` body 可為空。顯示操作只改變 `isVisible`，公開 API 仍會檢查有效期間。
+
+### Audit Logs（第二版預留）
+
+第一版會持續寫入必要的 `audit_logs`，但不提供以下管理端查詢 API。
 
 `GET /admin/audit-logs` query：
 
@@ -989,7 +1088,9 @@ Response：
 }
 ```
 
-## 點數異動 API
+## 第二版點數異動 API（預留）
+
+以下 API 不屬於第一版 routes 與驗收範圍。
 
 `POST /reviewer/point-change-requests` request：
 

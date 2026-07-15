@@ -298,12 +298,26 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] list users
   - [ ] get user detail
   - [ ] update user
+  - [ ] activate existing user
   - [ ] deactivate user 並撤銷該使用者既有 session
+- [ ] 實作 Phase 4 使用者管理 API：
+  - [ ] `GET /admin/users`
+  - [ ] `GET /admin/users/:userId`
+  - [ ] `PATCH /admin/users/:userId`
+  - [ ] `POST /admin/users/:userId/activate`
+  - [ ] `POST /admin/users/:userId/deactivate`
 - [ ] 實作 `AdvisorAdminService` 不建立登入帳號的功能：
   - [ ] list advisors
   - [ ] update advisor
   - [ ] activate / deactivate advisor
   - [ ] assign director
+- [ ] 實作 Phase 4 指導老師管理 API：
+  - [ ] `GET /admin/advisors`
+  - [ ] `PATCH /admin/advisors/:advisorId`
+  - [ ] `POST /admin/advisors/:advisorId/activate`
+  - [ ] `POST /admin/advisors/:advisorId/deactivate`
+  - [ ] `POST /admin/advisors/:advisorId/assign-director`
+- [ ] 每支管理 API 完成 route、Controller、Zod params/query/body、Authentication、CSRF、Permission、response mapper 與 API test，不以只有 Service 完成視為交付。
 - [ ] 對使用者、指導老師與主任異動建立 `audit_logs`。
 - [ ] 補管理員最小能力測試：
   - [ ] Development / test seed 可重複執行，且 production 會拒絕執行。
@@ -343,6 +357,12 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] send password reset，產生 password reset token 與 email task。
   - [ ] transfer admin。
   - [ ] `AdvisorAdminService.createAdvisor` 建立指導老師與登入帳號關聯。
+- [ ] 實作帳號生命週期管理 API：
+  - [ ] `POST /admin/users`
+  - [ ] `POST /admin/users/:userId/transfer-admin`
+  - [ ] `POST /admin/users/:userId/resend-activation`
+  - [ ] `POST /admin/users/:userId/send-password-reset`
+  - [ ] `POST /admin/advisors`
 - [ ] 實作 `POST /auth/activation/:token`：
   - [ ] 驗證 activation token hash 與到期時間。
   - [ ] 套用共用密碼 schema 與 policy。
@@ -374,10 +394,28 @@ REDIS_URL=redis://pr_b_redis:6379
 目標：完成公開建立申請的第一條端到端資料流。
 
 - [ ] 建立 `PointRuleRepository`。
-- [ ] 建立有效人數規則查詢。
+- [ ] 建立 `ParticipantRuleRepository` 與有效人數規則查詢。
+- [ ] 建立 `ApplicationInstructionRepository`。
 - [ ] 建立四種點數規則查詢。
-- [ ] 建立公開指導老師列表 API。
-- [ ] 建立公開申請說明 API。
+- [ ] 建立公開基礎資料 API：
+  - [ ] `GET /public/advisors`
+  - [ ] `GET /public/application-instructions?applicationType=...`
+- [ ] 實作管理端點數規則版本管理：
+  - [ ] `GET /admin/point-rules?applicationType=...`
+  - [ ] `POST /admin/point-rules`
+  - [ ] `POST /admin/point-rules/:applicationType/:ruleId/deactivate`
+- [ ] 實作管理端申請人數規則版本管理：
+  - [ ] `GET /admin/application-participant-rules`
+  - [ ] `POST /admin/application-participant-rules`
+  - [ ] `POST /admin/application-participant-rules/:ruleId/deactivate`
+- [ ] 實作輕量申請說明管理：
+  - [ ] `GET /admin/application-instructions`
+  - [ ] `POST /admin/application-instructions`
+  - [ ] `PATCH /admin/application-instructions/:instructionId`
+  - [ ] `POST /admin/application-instructions/:instructionId/show`
+  - [ ] `POST /admin/application-instructions/:instructionId/hide`
+  - [ ] 已生效內容不可原地改寫；建立新資料保留歷史，顯示狀態與排序依 API contract 管理。
+- [ ] 對規則與說明異動建立 `audit_logs`；第一版只寫入，不提供管理端 Audit log 查詢 API。
 - [ ] 建立建立申請 Zod discriminated union。
 - [ ] 建立 file validation 與 storage adapter。
 - [ ] 實作 `POST /public/applications`：
@@ -394,6 +432,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；Rate Limit 延後到 Phase 9。
 - [ ] 補規則與公開送件測試：
   - [ ] 有效期間規則查詢、人數上下限與四類點數計算。
+  - [ ] 點數規則、人數規則與申請說明管理的權限、期間重疊、歷史版本保護與 audit log。
   - [ ] 四類 Zod discriminated union 與跨欄位驗證。
   - [ ] 送件成功建立主表、參與者、專屬資料、版本、附件與 email tasks。
   - [ ] 任一步驟失敗時資料庫 rollback，已寫入的新檔案會清理。
