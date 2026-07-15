@@ -39,8 +39,9 @@
 | API 分組 | 實作 Phase | 說明 |
 | --- | --- | --- |
 | Auth 核心 | Phase 3 | Login、Logout、Me、CSRF、Authentication、Permission |
-| 使用者與指導老師基礎管理 | Phase 4 | 不依賴 Email 的查詢、更新、啟用與停用 |
-| 帳號生命週期與 Email | Phase 4.5 | 正式帳號建立、Activation、Password Reset、最小 Email worker |
+| 使用者與指導老師基礎管理 | Phase 4.1 | Development/test 帳號，以及不依賴 Email 的查詢、更新、重新啟用與停用 |
+| Email Task 最小投遞 | Phase 4.2 | 通用 Email repository、worker、provider adapter、有限重試與併發控制 |
+| 正式帳號生命週期 | Phase 4.3 | 正式帳號建立、Activation、Password Reset、管理員移交與帳號 Email templates |
 | 規則、說明與公開送件 | Phase 5 | 點數／人數規則管理、申請說明、公開查詢與四類送件 |
 | 指導老師簽核 | Phase 6 | 待簽列表、詳情、同意、拒絕與簽名 |
 | 承辦人審核與管理員申請查詢 | Phase 7 | 補件、調整、核准、拒絕與管理員唯讀查詢 |
@@ -50,6 +51,8 @@
 
 第二版 API 不放入第一版 Phase checklist，統一收錄於 [第二版實作 Backlog](implementation-backlog-v2.md)。API contract、權限與測試文件會標示版本，避免「資料表已存在」被誤解為「第一版功能已開放」。
 
+Phase 5 的開發可先使用 Phase 4.1 seed 帳號，但正式通知投遞依賴 Phase 4.2，正式使用者 onboarding 依賴 Phase 4.3；三個 Phase 4 子階段都屬於第一版正式上線範圍。
+
 ## 目前進度
 
-目前已完成 PostgreSQL migration、共用後端骨架、PostgreSQL app/server 啟動隔離與 Auth 核心主要程式。下一步依 [第一版實作計畫](implementation-plan-v1.md#目前補強-sprint) 補齊 Phase 2 與 Phase 3 自動化測試，再進入管理資料 API。
+目前已完成 PostgreSQL migration、共用後端骨架、PostgreSQL app/server 啟動隔離與 Auth 核心主要程式。下一步依 [第一版實作計畫](implementation-plan-v1.md#目前補強-sprint) 補齊 Phase 2 與 Phase 3 自動化測試，再進入 Phase 4.1 管理資料 API。
