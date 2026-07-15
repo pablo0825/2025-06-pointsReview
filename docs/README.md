@@ -8,7 +8,7 @@
 
 ### 產品與業務規則
 
-- [產品流程](product-workflows.md)：申請、簽核、補件、審核、逾期與點數異動流程。
+- [產品流程](product-workflows.md)：第一版申請、簽核、補件、審核與逾期流程，以及第二版點數異動設計。
 - [點數系統](point-system.md)：點數規則的業務語意、實際點數對應表、計算公式、版本管理政策、流水帳查詢方式與公開遮罩規則。
 - [舊資料處理決策](legacy-data-decision.md)：第一版不遷移舊 MongoDB 資料，新系統從乾淨 PostgreSQL 開始。
 
@@ -40,7 +40,9 @@
 
 ### 品質與實作追蹤
 
-- [第一版實作計劃](implementation-plan.md)：從現有 Express 專案改造至 PostgreSQL 的階段式實作 checklist。
+- [實作計畫總覽](implementation-plan.md)：正式第一版、第二版範圍與 API Phase 歸屬。
+- [第一版實作計畫](implementation-plan-v1.md)：從現有 Express 專案改造至可正式上線版本的階段式 checklist。
+- [第二版實作 Backlog](implementation-backlog-v2.md)：點數異動、Audit／Email 管理 API 與其他後續候選功能。
 - [測試策略](testing-strategy.md)：測試分層、PostgreSQL 測試資料庫、migration 驗證、流程矩陣、併發測試與 CI 門檻。
 - [實作時確認項目](open-decisions.md)：第一版設計收斂後，實作時仍需確認的選型、設定與部署細節。
 
@@ -51,12 +53,13 @@
 3. 實作 API 前讀 [API 與 Service 邊界](api-service-boundaries.md)、[API Request / Response Schema](api-schemas.md) 與 [Zod 驗證規格](zod-validation.md)。
 4. 實作登入、後台或敏感檔案前讀 [帳號與權限](authorization.md)、[登入、Session 與安全設計](auth-session-security.md)、[通用系統稽核紀錄](audit-logs.md) 與 [私有檔案儲存設計](file-storage.md)。
 5. 實作寫入流程與背景任務前讀 [Transaction 與併發控制](transaction-concurrency.md)、[Email Queue 與通知排程](email-queue.md) 與 [測試策略](testing-strategy.md)。
+6. 開始開發前由 [實作計畫總覽](implementation-plan.md) 確認版本範圍，再依 [第一版實作計畫](implementation-plan-v1.md) 執行 checklist。
 
 ## 核心設計原則
 
 - 申請人不需要登入，但必須是申請參與者之一。
 - 指導老師從系統名單選擇，登入後才能簽名。
-- 承辦人負責一般申請審核，管理員負責系統管理及核准後點數異動審核。
+- 承辦人負責一般申請審核，管理員負責第一版系統管理；核准後點數異動與管理員異動審核延後到第二版。
 - 申請版本、簽名、審核操作及學生點數皆保留不可覆蓋的歷史紀錄。
 - 點數規則採有效日期版本化，已提交申請沿用首次送件時適用的規則。
 - 敏感附件與簽名使用私有儲存，公開學生點數總表必須遮罩姓名與學號。
