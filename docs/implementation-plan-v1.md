@@ -482,6 +482,24 @@ REDIS_URL=redis://pr_b_redis:6379
 
 目標：完成承辦人審核主流程，包含補件、延長補件期限與最終審核。
 
+- [ ] 實作承辦人審核 API：
+  - [ ] `GET /reviewer/applications/review`
+  - [ ] `GET /reviewer/applications/review/:publicId`
+  - [ ] `POST /reviewer/applications/review/:publicId/request-revision`
+  - [ ] `POST /reviewer/applications/review/:publicId/extend-revision`
+  - [ ] `POST /reviewer/applications/review/:publicId/adjust-before-approval`
+  - [ ] `POST /reviewer/applications/review/:publicId/approve`
+  - [ ] `POST /reviewer/applications/review/:publicId/reject`
+  - [ ] `GET /reviewer/applications/history`
+  - [ ] `GET /reviewer/applications/history/:publicId`
+- [ ] 實作公開補件 API：
+  - [ ] `GET /public/applications/revisions/:token`
+  - [ ] `POST /public/applications/revisions/:token`
+- [ ] 實作管理員申請唯讀 API：
+  - [ ] `GET /admin/applications`
+  - [ ] `GET /admin/applications/:publicId`
+  - [ ] `GET /admin/applications/:publicId/review-actions`
+
 - [ ] 實作 review queue。
 - [ ] 實作 review detail。
 - [ ] 實作 request revision：
@@ -526,6 +544,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作證照累積上限 advisory lock。
 - [ ] 建立 `StudentPointTransactionRepository`。
 - [ ] 建立 `student_points_summary` query repository。
+- [ ] 實作 `GET /admin/student-point-transactions`，支援依學生、申請、類別與建立時間篩選。
 - [ ] 實作 `GET /public/student-points`：
   - [ ] academicYear
   - [ ] grade
@@ -569,6 +588,8 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] `GET /public/applications/revisions/:token` 每 IP 每小時 `60` 次。
   - [ ] `POST /public/applications/revisions/:token` 每 IP 每小時 `20` 次。
   - [ ] `GET /public/student-points` 每 IP 每分鐘 `60` 次。
+  - [ ] `GET /public/advisors` 每 IP 每分鐘 `120` 次。
+  - [ ] `GET /public/application-instructions` 每 IP 每分鐘 `120` 次。
 - [ ] 補 Rate Limit 自動化測試：
   - [ ] Window 內達上限回傳 `429`，window 到期後恢復。
   - [ ] IP 與 Email 維度互不混淆。
@@ -593,8 +614,14 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 stale processing email task maintenance。
 - [ ] 實作 advisor confirmation expired job。
 - [ ] 實作 revision expired job。
-- [ ] 實作 private attachment read API。
-- [ ] 實作 private advisor signature read API。
+- [ ] 實作 private attachment read API：
+  - [ ] `GET /advisor/applications/:publicId/attachments/:attachmentPublicId`
+  - [ ] `GET /reviewer/applications/:publicId/attachments/:attachmentPublicId`
+  - [ ] `GET /admin/applications/:publicId/attachments/:attachmentPublicId`
+- [ ] 實作 private advisor signature read API：
+  - [ ] `GET /advisor/applications/:publicId/signature`
+  - [ ] `GET /reviewer/applications/:publicId/signature`
+  - [ ] `GET /admin/applications/:publicId/signature`
 - [ ] 建立部署前應用程式生命週期：
   - [ ] 監聽 `SIGTERM` / `SIGINT`。
   - [ ] 呼叫 `server.close()` 停止接收新的 HTTP request。

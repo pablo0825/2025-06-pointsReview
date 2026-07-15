@@ -295,6 +295,10 @@ Zod 負責欄位格式、enum、正數點數與 `effectiveFrom < effectiveTo`；
 
 「是否已生效而可修改哪些欄位」需要讀取既有資料，屬於 `ApplicationInstructionAdminService`。Zod 只確認 request 本身格式。
 
+### 管理端唯讀查詢 Schema
+
+管理員申請列表、審核紀錄與學生點數流水帳查詢也必須使用 endpoint 專屬 query schema。Zod 負責 enum、UUID、整數代碼、日期區間與分頁上限；Service 負責資料存在性與可見範圍。未知 query 欄位應拒絕或明確忽略並維持一致策略，不能直接展開成任意 SQL 排序或欄位名稱。
+
 ## 錯誤格式
 
 Zod 驗證失敗一律回傳 `422 validation_failed`，並包含欄位路徑：

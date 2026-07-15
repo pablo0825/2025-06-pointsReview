@@ -22,7 +22,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - 補件提醒第一版排程為期限前 `24` 小時。
 - 寄送永久失敗時建立 `email_delivery_failed` 通知，並避免失敗通知無限遞迴。
 - Email 寄送失敗本身不應直接讓申請作廢。
-- 管理員第一版可查詢 failed email tasks，並可手動重寄；重寄會建立新的 `email_tasks`，不覆蓋原 failed task。
+- Email task 管理查詢與系統內手動重寄延後到第二版；第一版仍需完成自動有限重試、永久失敗狀態與失敗通知。
 - `advisor_confirmation_expires_at` 是指導老師簽核最後期限；提醒信必須在期限前寄送，逾期後不再自動寄送簽核連結。
 
 仍需實作時確認：
@@ -30,7 +30,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - Email provider，例如 SMTP、SendGrid、Mailgun 或學校信件服務。
 - 寄件者名稱、reply-to 與 provider message id 是否保存。
 - Email template 實際 subject 與 HTML/text 內容。
-- 管理後台 failed email tasks 列表欄位、操作文案與手動重寄確認流程。
+- 第二版管理後台 failed email tasks 列表欄位、操作文案與手動重寄確認流程。
 
 ### 2. 通知失敗與申請作廢政策
 
@@ -48,7 +48,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 
 仍需實作時確認：
 
-- 管理後台人工處理 Email 永久失敗的畫面與流程。
+- 第二版管理後台人工處理 Email 永久失敗的畫面與流程。
 - 因 Email 無法寄達造成特殊處理時，是否需要額外審核紀錄 action type。
 
 ### 3. Migration 與初始資料 Seed
@@ -70,7 +70,6 @@ Migration 與 Seed 初版方案已整理於 [Migration 與 Seed 方案](migratio
 
 仍需實作時確認：
 
-- 初始點數規則 seed 的實際資料內容。
 - 開發與測試環境 seed 的資料量與展示案例。
 
 ### 4. API Endpoint 與 Service 邊界

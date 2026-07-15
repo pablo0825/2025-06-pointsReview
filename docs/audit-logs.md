@@ -1,12 +1,12 @@
 ﻿# 通用系統稽核紀錄
 
-本文件定義第一版 `audit_logs` 的用途、資料語意、必記錄事件、查詢權限與敏感資料規則。申請審核流程專用紀錄仍使用 `application_review_actions`；本文件聚焦帳號、教師、規則、敏感檔案、維運與其他跨模組管理操作。
+本文件定義 `audit_logs` 的用途、資料語意、必記錄事件、查詢權限與敏感資料規則。第一版必須完成必要事件寫入；管理端查詢 API 延後到第二版。申請審核流程專用紀錄仍使用 `application_review_actions`；本文件聚焦帳號、教師、規則、敏感檔案、維運與其他跨模組管理操作。
 
 ## 設計目標
 
 - 記錄誰在什麼時間、從什麼來源，對哪個資源執行了哪個重要操作。
 - 補足 `application_review_actions` 無法涵蓋的帳號、教師、規則、檔案查看與維運操作。
-- 支援管理員事後查詢安全事件與敏感資料存取紀錄。
+- 保存可供第二版管理端事後查詢的安全事件與敏感資料存取紀錄。
 - 稽核紀錄不可由一般 API 修改或刪除。
 - 不在稽核紀錄中保存密碼、原始 token、token hash、session token、CSRF token、附件內容或簽名內容。
 
@@ -63,13 +63,21 @@
 
 - `point_rule.created`
 - `point_rule.deactivated`
+- `participant_rule.created`
+- `participant_rule.deactivated`
+
+申請說明：
+
+- `application_instruction.created`
+- `application_instruction.updated`
+- `application_instruction.visibility_changed`
 
 敏感檔案：
 
 - `application_attachment.viewed`
 - `advisor_signature.viewed`
 
-點數異動：
+點數異動（第二版）：
 
 - `point_change_request.created`
 - `point_change_request.approved`
@@ -77,7 +85,7 @@
 
 維運與背景任務：
 
-- `email_task.retry_requested`
+- `email_task.retry_requested`（第二版）
 - `maintenance.admin_created`
 - `maintenance.admin_recovered`
 - `system.expired_applications_processed`
@@ -92,10 +100,12 @@
 | `user` | `users` |
 | `advisor` | `advisors` |
 | `point_rule` | 四種點數規則表 |
+| `participant_rule` | `application_type_participant_rules` |
+| `application_instruction` | `application_instructions` |
 | `point_application` | `point_applications` |
 | `application_attachment` | `application_attachments` |
 | `advisor_signature` | `advisor_signatures` |
-| `student_point_change_request` | `student_point_change_requests` |
+| `student_point_change_request` | `student_point_change_requests`，第二版 |
 | `student_point_transaction` | `student_point_transactions` |
 | `email_task` | `email_tasks` |
 | `maintenance_command` | 維運指令 |
@@ -172,9 +182,9 @@ Service 應在同一個業務 Transaction 中寫入 `audit_logs`。
 
 ## 查詢權限
 
-第一版只允許管理員查詢 `audit_logs`。
+第一版不提供 `audit_logs` 查詢 API，但仍必須完整寫入。第二版只允許管理員查詢。
 
-建議 API：
+第二版 API：
 
 ```text
 GET /admin/audit-logs
@@ -221,7 +231,7 @@ AuditLogService
 - 業務 Service 負責決定何時需要建立稽核紀錄，例如管理員停用使用者、異動指導老師、查看敏感檔案或切換點數規則。
 - `AuditLogService` 負責把稽核內容整理成一致格式，包含 `actor_type`、`actor_user_id`、`action`、`resource_type`、`resource_id`、`resource_public_id`、`metadata`、`ip_address` 與 `user_agent`。
 - `AuditLogService` 必須在寫入前移除或遮罩敏感資料，例如密碼、原始 token、token hash、session token、CSRF token、附件內容與完整 storage key。
-- `AuditLogRepository` 只負責 `audit_logs` 的 `INSERT` 與查詢 SQL，不判斷業務語意，不讀取 HTTP context，也不自行開啟 Transaction。
+- `AuditLogRepository` 第一版只需提供 `INSERT`；第二版再加入查詢 SQL。Repository 不判斷業務語意、不讀取 HTTP context，也不自行開啟 Transaction。
 
 典型流程：
 

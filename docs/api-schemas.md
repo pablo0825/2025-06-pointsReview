@@ -860,6 +860,59 @@ Request：
 }
 ```
 
+### Applications（唯讀）
+
+`GET /admin/applications` 使用共用分頁，並可依 `status`、`applicationType`、`applicantKeyword`、`submittedFrom`、`submittedTo` 篩選。管理員只有唯讀權限，不提供核准、拒絕或補件操作。
+
+`GET /admin/applications/:publicId` 回傳申請主資料、目前參與者、類型專屬資料、版本摘要、附件 metadata、目前有效簽名摘要與點數規則快照；不回傳 storage key。
+
+`GET /admin/applications/:publicId/review-actions` 依 `createdAt ASC, id ASC` 回傳該申請的審核操作紀錄，包括 action、actor、reason、metadata 與版本編號。
+
+### Student Point Transactions（唯讀）
+
+`GET /admin/student-point-transactions` query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `studentNumber` | string | 可省略 |
+| `academicYear` | number | 可省略 |
+| `grade` | number | 可省略 |
+| `classNumber` | number | 可省略 |
+| `applicationPublicId` | UUID | 可省略 |
+| `pointCategory` | string | 可省略 |
+| `createdFrom` | date-time | 可省略 |
+| `createdTo` | date-time | 可省略 |
+| `page` | number | 預設 `1` |
+| `pageSize` | number | 預設 `20`，最大 `100` |
+
+Response 依 `createdAt DESC, id DESC` 排序：
+
+```json
+{
+  "data": [
+    {
+      "id": 100,
+      "studentNumber": "S114001",
+      "studentNameSnapshot": "王小明",
+      "academicYearSnapshot": 114,
+      "gradeSnapshot": 3,
+      "classNumberSnapshot": 2,
+      "applicationPublicId": "550e8400-e29b-41d4-a716-446655440000",
+      "pointCategory": "competition",
+      "points": "3.00",
+      "transactionType": "award",
+      "createdAt": "2026-07-05T10:20:30.000+08:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1
+  }
+}
+```
+
 ### Email Tasks（第二版預留）
 
 第一版會建立及投遞 Email tasks，但不提供以下管理端查詢與手動重寄 API。
@@ -1150,8 +1203,10 @@ Cache-Control: no-store
 | `application_version_conflict` | 409 | 使用者確認的版本不是目前版本 |
 | `advisor_confirmation_expired` | 409 | 指導老師簽核已逾期 |
 | `revision_token_invalid` | 409 | 補件 token 無效、過期或已使用 |
-| `point_change_request_status_conflict` | 409 | 點數異動申請已被處理 |
 | `point_rule_period_overlap` | 409 | 點數規則有效期間重疊 |
+| `participant_rule_period_overlap` | 409 | 申請人數規則有效期間重疊 |
+| `application_instruction_period_overlap` | 409 | 同一申請說明區塊有效期間重疊 |
+| `application_instruction_already_effective` | 409 | 已生效說明內容不可原地改寫 |
 | `certificate_points_limit_exceeded` | 400 | 證照點數超過累積上限 |
 | `file_type_not_allowed` | 400 | 檔案格式不允許 |
 | `file_too_large` | 400 | 檔案超過大小限制 |
@@ -1161,6 +1216,8 @@ Cache-Control: no-store
 | `active_admin_required` | 409 | 管理員移交或停用會造成無啟用管理員 |
 | `active_director_conflict` | 409 | 主任設定發生衝突 |
 | `internal_error` | 500 | 未預期錯誤 |
+
+第二版啟用點數異動 API 時，再加入 `point_change_request_status_conflict` 等對應錯誤碼。
 
 ## 尚待實作時確認
 
