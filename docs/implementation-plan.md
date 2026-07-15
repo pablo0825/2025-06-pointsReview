@@ -251,9 +251,9 @@ REDIS_URL=redis://pr_b_redis:6379
 - 共用 transaction、validation、error mapping 與 request context 具有自動化測試。
 - Body limit、client IP helper 與敏感 log 政策有明確設定；正式環境 CORS 與 reverse proxy 設定延後到 Phase 10 / 部署前處理。
 
-## Phase 3：Auth / Session / 權限
+## Phase 3：Auth 核心 / Session / 權限
 
-目標：完成登入後 API 的基礎身分驗證與授權。
+目標：完成可供後續業務 API 使用的登入、Session、CSRF 與權限基礎。本階段只處理 Auth 核心；帳號啟用、密碼重設與 Email 投遞集中到 Phase 4.5，Rate Limit 與登入失敗鎖定集中到 Phase 9.5。
 
 - [x] 實作密碼雜湊策略，使用 Argon2id。
 - [x] 建立 `UserRepository`。
@@ -270,41 +270,6 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
 - [x] 實作 permission middleware。
-- [ ] 確認 Phase 0 / Phase 2 的 proxy 與 client IP 設定已完成，Auth rate limit 不使用可由 client 任意偽造的 IP header。
-- [ ] 設計並實作 Auth rate limit：
-  - [ ] Redis key 命名與 window 設定。
-  - [ ] local development / test 的 in-memory fallback。
-  - [ ] `rate_limited` 錯誤回應。
-- [ ] 實作登入失敗防護：
-  - [ ] IP 維度登入嘗試限制。
-  - [ ] Email 維度連續失敗次數。
-  - [ ] 連續失敗達上限後鎖定 `15` 分鐘。
-  - [ ] 登入成功後清除該帳號失敗計數。
-- [ ] 建立 `EmailTaskRepository.createPending`，供 Auth 與後續 Service 在業務 Transaction 中建立寄信任務；worker claim 與投遞功能在 Phase 3.5 完成。
-- [ ] 實作 `POST /auth/activation/:token`：
-  - [ ] 驗證 activation token hash 與到期時間。
-  - [ ] 套用 activation API 的 IP rate limit。
-  - [ ] 套用共用密碼規則。
-  - [ ] 設定 Argon2id password hash。
-  - [ ] 清除 activation token hash 與到期時間。
-  - [ ] 寫入 `activated_at`。
-  - [ ] 依管理員移交流程判斷是否啟用帳號。
-- [ ] 實作 `POST /auth/password-reset/request`：
-  - [ ] 不揭露 Email 是否存在。
-  - [ ] 產生 password reset token hash 與到期時間。
-  - [ ] 建立 password reset email task。
-  - [ ] 套用 password reset rate limit。
-- [ ] 實作 `POST /auth/password-reset/:token`：
-  - [ ] 驗證 password reset token hash 與到期時間。
-  - [ ] 套用共用密碼規則。
-  - [ ] 更新 Argon2id password hash。
-  - [ ] 清除 password reset token hash 與到期時間。
-  - [ ] 撤銷該使用者既有 session。
-  - [ ] 建立 `user.password_reset_completed` audit log。
-- [ ] 建立共用密碼 schema / policy：
-  - [ ] 長度至少 `12` 字元。
-  - [ ] 禁止常見弱密碼。
-  - [ ] 不允許與 Email local part 完全相同。
 - [ ] 補 Auth 自動化測試：
   - [ ] Login 成功、失敗與不洩漏帳號狀態的回應。
   - [ ] Session cookie 的 `HttpOnly`、`Secure`、`SameSite`、`Path` 與有效期限。
@@ -312,78 +277,95 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] Logout 撤銷目前 session。
   - [ ] CSRF token 取得、輪替、缺漏與錯誤 token。
   - [ ] advisor / reviewer / admin permission mapping 與 `403 forbidden`。
-  - [ ] Login IP rate limit、Email 失敗鎖定與登入成功後清除計數。
-  - [ ] Activation token 過期、使用後失效與密碼規則。
-  - [ ] Password reset 不洩漏 Email、token 過期、使用後失效、撤銷 session 與 audit log。
 
 完成條件：
 
-- 已啟用使用者可以登入並取得 HttpOnly session cookie。
+- 開發／測試環境中的已啟用帳號可以登入並取得 HttpOnly session cookie。
 - 登入後可以取得 `/auth/me` 與 CSRF token。
 - 權限不足的 API 會回傳 `403 forbidden`。
-- Login、activation 與 password reset 具備第一版 rate limit 與不洩漏帳號狀態的錯誤回應。
-- 帳號啟用與密碼重設流程會建立必要 email tasks 並清除 token hash。
-- Auth、Session、CSRF、Permission、Rate Limit、Activation 與 Password Reset 具有自動化測試。
+- Auth、Session、CSRF 與 Permission 核心行為具有自動化測試。
 
-## Phase 3.5：最小 Email Delivery 基礎
+## Phase 4：管理資料與開發帳號基礎
 
-目標：讓 Phase 3 建立的 password reset email task，以及 Phase 4 建立的 account activation email task 可以實際寄送。此階段只建立可用的最小投遞能力；提醒排程、手動重寄與故障維運留在 Phase 10。
+目標：先完成不依賴 Email 的管理資料查詢與維護能力。正式帳號建立、初始管理員啟用與密碼生命週期留到 Phase 4.5；在此之前，local development 與 test 使用 deterministic seed 建立已啟用測試帳號。
 
-- [ ] 建立 `EmailTaskRepository`：
-  - [ ] 沿用 Phase 3 的 `createPending`，補齊 worker 所需查詢與狀態更新。
-  - [ ] 使用 `FOR UPDATE SKIP LOCKED` claim `scheduled_at <= NOW()` 的 pending tasks。
-  - [ ] 標記 `sent` 並寫入 `sent_at`。
-  - [ ] 寄送失敗時增加 `attempt_count` 並寫入安全處理後的 `last_error`。
-  - [ ] 未達重試上限時重新排程為 `pending`，達上限時標記為 `failed`。
-- [ ] 建立 Email provider / sender adapter，Service 與 worker 不直接綁定特定寄信套件。
-- [ ] 建立 account activation 與 password reset Email template mapping。
-- [ ] 建立可單次執行的 worker function，排程器只負責定期呼叫，方便測試與安全停止。
-- [ ] 確保 Email payload、application log 與 `last_error` 不保存或輸出密碼、token hash、SMTP credential；原始一次性 token 只可存在需要寄出的連結 payload，寄送與錯誤 log 不得輸出。
-- [ ] 補最小 worker 測試：
-  - [ ] 只 claim 已到 `scheduled_at` 的 pending task。
-  - [ ] 平行 worker 不會取得同一筆 task。
-  - [ ] 寄送成功改為 `sent`。
-  - [ ] 可重試錯誤會重新排程。
-  - [ ] 達上限後改為 `failed`。
-
-完成條件：
-
-- Password reset 與 account activation email task 可以從 `pending` 被 worker 寄送並更新為 `sent`。
-- Worker crash 或寄送失敗不會造成同一筆 task 被無限制重複寄送。
-- Phase 4 建立帳號後，啟用信可以完成實際投遞，不只停留在資料庫 task。
-
-## Phase 4：管理員最小後台能力
-
-目標：讓系統可以建立第一版必要的帳號、指導老師與主任資料。
-
-- [ ] 建立初始管理員維運指令。
-- [ ] 實作 `UserAdminService` 最小功能：
+- [ ] 建立 local development / test 專用的已啟用帳號 seed：
+  - [ ] 建立 admin、reviewer 與 advisor 最小測試帳號。
+  - [ ] 禁止在 production 執行或寫入固定測試密碼。
+- [ ] 實作 `UserAdminService` 不依賴 Email 的功能：
   - [ ] list users
-  - [ ] create user
-  - [ ] 建立帳號時產生 activation token hash 與到期時間
-  - [ ] 建立 account activation email task
-  - [ ] activate / deactivate user
-  - [ ] resend activation
-  - [ ] resend activation 時產生新的 activation token hash 與 email task
-  - [ ] send password reset
-  - [ ] send password reset 時產生 password reset token hash 與 email task
-- [ ] 實作 `AdvisorAdminService` 最小功能：
+  - [ ] get user detail
+  - [ ] update user
+  - [ ] deactivate user 並撤銷該使用者既有 session
+- [ ] 實作 `AdvisorAdminService` 不建立登入帳號的功能：
   - [ ] list advisors
-  - [ ] create advisor with user relation
   - [ ] update advisor
   - [ ] activate / deactivate advisor
   - [ ] assign director
 - [ ] 對使用者、指導老師與主任異動建立 `audit_logs`。
 - [ ] 補管理員最小能力測試：
-  - [ ] 初始管理員維運指令、唯一啟用管理員與 audit log。
-  - [ ] 建立／停用使用者會建立或撤銷必要 token、session、email task 與 audit log。
-  - [ ] 指導老師建立、停用與主任異動的權限、constraint 與 audit log。
+  - [ ] Development / test seed 可重複執行，且 production 會拒絕執行。
+  - [ ] 使用者查詢、更新與停用的權限、session 撤銷及 audit log。
+  - [ ] 指導老師查詢、更新、停用與主任異動的權限、constraint 與 audit log。
 
 完成條件：
 
-- 系統可以建立承辦人、管理員與指導老師帳號。
-- 建立帳號後可透過 Phase 3.5 Email worker 寄出啟用信，並由 Phase 3 activation API 完成首次密碼設定。
+- 開發與測試環境有可登入的 admin、reviewer 與 advisor 帳號，不依賴 Email 即可驗證後續 API。
+- 管理員可以查詢、更新及停用既有使用者，並維護既有指導老師資料。
 - 前台可查詢可選指導老師資料所需的基礎資料已具備。
+
+## Phase 4.5：Email Task 與帳號生命週期
+
+目標：集中完成正式帳號建立、帳號啟用、密碼重設與最小 Email 投遞流程。此階段完成前，系統只使用 Phase 4 的非正式環境測試帳號，不把正式使用者 onboarding 視為可用。
+
+- [ ] 建立 `EmailTaskRepository`：
+  - [ ] 在業務 Transaction 中建立 pending task。
+  - [ ] 使用 `FOR UPDATE SKIP LOCKED` claim `scheduled_at <= NOW()` 的 pending tasks。
+  - [ ] 標記 `sent` 並寫入 `sent_at`。
+  - [ ] 寄送失敗時增加 `attempt_count` 並寫入安全處理後的 `last_error`。
+  - [ ] 未達重試上限時重新排程為 `pending`，達上限時標記為 `failed`。
+- [ ] 建立 `EmailTaskService` 與 Email provider / sender adapter，Service 與 worker 不直接綁定特定寄信套件。
+- [ ] 建立 account activation 與 password reset Email template mapping。
+- [ ] 建立可單次執行的 worker function，排程器只負責定期呼叫，方便測試與安全停止。
+- [ ] 確保 Email payload、application log 與 `last_error` 不保存或輸出密碼、token hash、SMTP credential；原始一次性 token 只可存在需要寄出的連結 payload，寄送與錯誤 log 不得輸出。
+- [ ] 建立共用 `passwordSchema`：
+  - [ ] 驗證字串型別、至少 `12` 字元與合理最大長度。
+- [ ] 建立 `PasswordPolicy`：
+  - [ ] 禁止常見弱密碼。
+  - [ ] 不允許與 Email local part 完全相同。
+- [ ] 實作正式帳號建立與管理流程：
+  - [ ] 建立初始管理員維運指令，產生 activation token、email task 與 audit log。
+  - [ ] `UserAdminService.createUser` 建立帳號、activation token 與 email task。
+  - [ ] activate user；deactivate user 沿用 Phase 4 已完成的流程。
+  - [ ] resend activation，產生新 token 並使舊 token 失效。
+  - [ ] send password reset，產生 password reset token 與 email task。
+  - [ ] transfer admin。
+  - [ ] `AdvisorAdminService.createAdvisor` 建立指導老師與登入帳號關聯。
+- [ ] 實作 `POST /auth/activation/:token`：
+  - [ ] 驗證 activation token hash 與到期時間。
+  - [ ] 套用共用密碼 schema 與 policy。
+  - [ ] 設定 Argon2id password hash、清除 token 並寫入 `activated_at`。
+  - [ ] 依初始管理員／管理員移交流程判斷是否啟用帳號。
+- [ ] 實作 `POST /auth/password-reset/request`：
+  - [ ] 不揭露 Email 是否存在。
+  - [ ] 產生 password reset token hash、到期時間與 email task。
+- [ ] 實作 `POST /auth/password-reset/:token`：
+  - [ ] 驗證 password reset token hash 與到期時間。
+  - [ ] 套用共用密碼 schema 與 policy。
+  - [ ] 更新 Argon2id password hash、清除 token 並撤銷既有 session。
+  - [ ] 建立 `user.password_reset_completed` audit log。
+- [ ] 補 Email worker 與帳號生命週期測試：
+  - [ ] 只 claim 已到期的 pending task，平行 worker 不會取得同一筆 task。
+  - [ ] 寄送成功、可重試失敗與永久失敗狀態轉換。
+  - [ ] 帳號建立、重寄啟用與密碼重設會建立正確且不重複的 email tasks。
+  - [ ] Activation / reset token 過期、使用後失效與密碼規則。
+  - [ ] Password reset 不洩漏 Email，成功後撤銷 session 並建立 audit log。
+
+完成條件：
+
+- 系統可以建立正式 admin、reviewer 與 advisor 帳號，並透過 Email 完成首次密碼設定。
+- Password reset request 可以寄出重設信，token 使用後立即失效並撤銷既有 session。
+- Email task 可以從 `pending` 被 worker 投遞，成功、重試與永久失敗狀態都有自動化測試。
 
 ## Phase 5：規則與公開送件
 
@@ -407,14 +389,13 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 更新 `current_version_id`。
   - [ ] 建立附件 metadata。
   - [ ] 建立老師簽核通知與提醒 `email_tasks`。
-- [ ] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；建立申請 API 套用第一版 IP rate limit。
+- [ ] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；Rate Limit 延後到 Phase 9.5。
 - [ ] 補規則與公開送件測試：
   - [ ] 有效期間規則查詢、人數上下限與四類點數計算。
   - [ ] 四類 Zod discriminated union 與跨欄位驗證。
   - [ ] 送件成功建立主表、參與者、專屬資料、版本、附件與 email tasks。
   - [ ] 任一步驟失敗時資料庫 rollback，已寫入的新檔案會清理。
   - [ ] 檔案類型、大小、數量、storage key 與路徑穿越防護。
-  - [ ] 建立申請 rate limit。
 
 完成條件：
 
@@ -478,7 +459,6 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 實作 reject。
 - [ ] 實作 adjust before approval。
 - [ ] 實作 approve。
-- [ ] 對 public revision get / submit 套用第一版 IP rate limit。
 - [ ] 補承辦人審核與補件測試：
   - [ ] Review queue/detail 的權限、分頁與資料範圍。
   - [ ] 補件 token 錯誤、過期、使用後失效與延長期限。
@@ -508,13 +488,12 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] pagination
   - [ ] sorting
   - [ ] 姓名與學號遮罩
-- [ ] 對公開學生點數查詢套用 query 長度、分頁上限與第一版 IP rate limit。
+- [ ] 對公開學生點數查詢套用 query 長度與分頁上限；Rate Limit 延後到 Phase 9.5。
 - [ ] 補點數流水帳與公開查詢測試：
   - [ ] 核准時每位參與者只建立一筆 award，且正確保存學生快照。
   - [ ] `student_points_summary` 依學年度、年級、班級與學生正確分組加總。
   - [ ] 公開 response 只回傳遮罩後姓名與學號。
   - [ ] 兩筆證照同時核准時，advisory lock 可防止累積點數超限。
-  - [ ] 公開查詢 rate limit。
 
 完成條件：
 
@@ -548,11 +527,47 @@ REDIS_URL=redis://pr_b_redis:6379
 - 承辦人不能直接改流水帳。
 - 管理員核准後才會新增 adjustment 或 reversal 紀錄。
 
+## Phase 9.5：上線前安全收斂
+
+目標：在核心 API 與帳號生命週期已穩定後，集中補齊第一版正式上線需要的防暴力嘗試與公開 API 防濫用措施。Local development 可停用 Rate Limit 或使用較高上限；production 必須使用 Redis-backed store。
+
+- [ ] 建立可重用 Rate Limit 基礎：
+  - [ ] 定義 Redis key 命名、window、counter 與到期策略。
+  - [ ] Production 啟動時要求可用的 Redis rate limit store，不允許退回 in-memory。
+  - [ ] Local development / test 可使用可注入、可重設的 in-memory store。
+  - [ ] 統一回傳 `429 rate_limited`，且錯誤訊息不洩漏帳號或 token 狀態。
+  - [ ] 使用 Phase 2 的 client IP helper；正式部署的 trusted proxy 驗證在 Phase 10 完成。
+- [ ] 實作登入失敗防護：
+  - [ ] `POST /auth/login` 每 IP 每 `15` 分鐘最多 `30` 次。
+  - [ ] 同一 normalized Email 連續失敗 `5` 次後鎖定 `15` 分鐘。
+  - [ ] Redis key 使用 normalized Email 的 SHA-256，不直接保存 Email。
+  - [ ] 登入成功後清除該 Email 的失敗計數與鎖定狀態。
+- [ ] 對帳號生命週期 API 套用限制：
+  - [ ] `POST /auth/password-reset/request` 每 Email 每小時 `3` 次、每 IP 每小時 `20` 次。
+  - [ ] `POST /auth/activation/:token` 每 IP 每小時 `30` 次。
+- [ ] 對公開 API 套用限制：
+  - [ ] `POST /public/applications` 每 IP 每小時 `20` 次。
+  - [ ] `GET /public/applications/revisions/:token` 每 IP 每小時 `60` 次。
+  - [ ] `POST /public/applications/revisions/:token` 每 IP 每小時 `20` 次。
+  - [ ] `GET /public/student-points` 每 IP 每分鐘 `60` 次。
+- [ ] 補 Rate Limit 自動化測試：
+  - [ ] Window 內達上限回傳 `429`，window 到期後恢復。
+  - [ ] IP 與 Email 維度互不混淆。
+  - [ ] 登入成功會清除帳號失敗計數。
+  - [ ] 不存在、未啟用、已停用帳號的外部回應不洩漏狀態。
+  - [ ] Production 未設定 Redis 時拒絕啟動，development / test 可使用明確 fallback。
+
+完成條件：
+
+- Login、Activation、Password Reset 與指定公開 API 都有第一版 Rate Limit。
+- 登入失敗鎖定不在 Redis key、log 或錯誤 response 暴露完整 Email 與帳號狀態。
+- Rate Limit 不阻礙一般開發測試，但 production 不會在缺少 Redis 時無保護啟動。
+
 ## Phase 10：背景任務、私有檔案與測試收斂
 
 目標：在各 Phase 已有對應測試的前提下，補齊非同步維運流程、安全檔案讀取、跨模組回歸與第一版上線門檻。
 
-- [ ] 擴充 Phase 3.5 Email worker 維運能力：
+- [ ] 擴充 Phase 4.5 Email worker 維運能力：
   - [ ] email delivery permanently failed notification。
   - [ ] worker 啟動、停止與健康狀態整合。
 - [ ] 實作 expired session cleanup job。
@@ -596,14 +611,16 @@ REDIS_URL=redis://pr_b_redis:6379
 
 ## 目前補強 Sprint
 
-Phase 1 資料庫與 Phase 3 Auth 基礎已部分實作，但前置啟動邊界與測試基礎尚未完成。繼續擴充 Auth API 前，建議依下列順序補強：
+Phase 0 啟動隔離與 Phase 2 測試基礎已有進度，目前先完成 Auth 核心驗證，不在這個 Sprint 提前實作 Rate Limit、Email worker、Activation 或 Password Reset：
 
 - [x] 完成 Phase 0 PostgreSQL app / server 啟動分離與 legacy Mongo 隔離。
 - [x] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
 - [ ] 保留 Phase 1 乾淨資料庫 migration / seed 人工驗證紀錄；自動化 migration verification command 延後到 Phase 10 / 部署前 CI 收斂。
 - [x] 完成 Phase 2 body limit、client IP helper 與敏感 log 設定；正式 CORS / trusted proxy 延後到 Phase 10 / 部署前。
-- [ ] 為目前已完成的 transaction、validation、constraint mapping、Session、CSRF 與 Permission 補測試。
-- [ ] 再繼續 Phase 3 Auth rate limit、登入失敗防護、Activation 與 Password Reset。
-- [ ] 完成 Phase 3.5 最小 Email worker 後，再進入 Phase 4 帳號管理。
+- [ ] 為目前已完成的 transaction、validation 與 constraint mapping 補 Phase 2 測試。
+- [ ] 為 Login、Session、Cookie、CSRF 與 Permission 補 Phase 3 Auth 核心測試。
+- [ ] Phase 3 完成後進入 Phase 4，使用 development / test seed 帳號實作不依賴 Email 的管理資料功能。
+- [ ] 需要正式帳號 onboarding 與通知投遞時，再進入 Phase 4.5 Email Task 與帳號生命週期。
+- [ ] 核心業務 API 穩定後，在 Phase 9.5 一次完成 Auth 與公開 API Rate Limit。
 
-此 Sprint 完成後，PostgreSQL 新主流程才能在沒有舊 Mongo 系統的情況下獨立啟動，後續 Auth 與管理員流程也會有可持續執行的自動化驗證基礎。
+此 Sprint 完成後，Auth 核心會有可持續執行的自動化驗證；Email 帳號生命週期與上線安全收斂仍保留在第一版，但不阻塞目前的核心 API 開發。
