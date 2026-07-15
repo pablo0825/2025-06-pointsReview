@@ -6,7 +6,8 @@ describe("test app harness", () => {
   it("loads the Express app without starting a server", async () => {
     const app = createTestApp();
 
+    // Express apps are callable request handlers and expose routing methods such as use().
     expect(typeof app).toBe("function");
-    expect(typeof app.handle).toBe("function");
+    expect(typeof app.use).toBe("function");
   });
 });
