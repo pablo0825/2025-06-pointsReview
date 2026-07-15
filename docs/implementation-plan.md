@@ -228,6 +228,7 @@ REDIS_URL=redis://pr_b_redis:6379
   - [x] 選定並設定 test runner。
   - [x] 建立獨立 PostgreSQL test database 設定與防止連到 production 的檢查。
   - [x] 建立 repository / service transaction rollback test helper。
+    - 備註：`withRollback()` 是測試輔助工具，用於讓 DB 測試寫入資料後一律 rollback。第一版先建立 helper；helper 自身的成功 rollback、失敗 rollback 與 client release 測試，可等開始大量撰寫 Repository / Service database tests 前補上。
   - [x] 建立 API test 可直接載入的 Express app。
 - [x] 建立最小應用程式啟動檢查：
   - [x] 啟動時驗證 PostgreSQL 可連線。
