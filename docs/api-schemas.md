@@ -651,7 +651,42 @@ Response：
 }
 ```
 
-歷史列表與詳情使用同一套 list item 與 detail schema，但查詢範圍包含已處理申請。
+### `GET /advisor/applications/history`
+
+只查詢 `advisorId` 對應目前登入老師，且目前狀態不是 `pending_advisor` 的申請。
+
+Query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `applicationType` | string | 可省略 |
+| `status` | string | 可省略；`under_review`、`needs_revision`、`approved`、`rejected` |
+| `submittedFrom` | date-time | 可省略 |
+| `submittedTo` | date-time | 可省略 |
+| `page` | number | 預設 `1` |
+| `pageSize` | number | 預設 `20`，最大 `100` |
+
+Response 使用共用 `ApplicationListItem[]`，依 `submittedAt DESC, id DESC` 排序。補件重新提交後若狀態回到 `pending_advisor`，該申請回到 pending 列表，不同時出現在 history。
+
+### `GET /advisor/applications/history/:publicId`
+
+只能讀取目前登入老師負責、且目前不在 `pending_advisor` 的申請。Response 沿用 pending detail 的 application schema，另外包含：
+
+```json
+{
+  "data": {
+    "application": {
+      "publicId": "550e8400-e29b-41d4-a716-446655440000",
+      "status": "approved",
+      "versions": [],
+      "advisorReviewActions": [],
+      "advisorSignatures": []
+    }
+  }
+}
+```
+
+歷史簽名只回傳 metadata 與是否有效，不回傳 `signatureStorageKey`；實際檔案仍透過私有檔案 API 讀取。
 
 ## 承辦人 API
 
@@ -667,6 +702,20 @@ Query：
 | `submittedTo` | date-time | 可省略 |
 
 Response 使用 `ApplicationListItem[]`。
+
+Review queue 包含 `under_review` 與 `needs_revision`。`needs_revision` 仍屬未結案案件，用於追蹤補件期限與重新提交狀態，不列入 reviewer history。
+
+### `GET /reviewer/applications/review/:publicId`
+
+只能查詢目前位於 `under_review` 或 `needs_revision` 的申請。Response 包含申請主資料、參與者、類型專屬資料、適用規則快照、目前版本、版本摘要、附件 metadata、目前有效老師簽名與審核操作紀錄；不回傳 token hash 或 storage key。
+
+### `GET /reviewer/applications/history`
+
+Query 支援 `applicationType`、`status`、`keyword`、`submittedFrom`、`submittedTo` 與共用分頁。`status` 只接受終止狀態 `approved`、`rejected`。Response 使用 `ApplicationListItem[]`，依 `closedAt DESC, id DESC` 排序。
+
+### `GET /reviewer/applications/history/:publicId`
+
+只能查詢 `approved` 或 `rejected` 申請。Response 使用 reviewer detail schema，並包含完整版本摘要與審核操作紀錄；附件及簽名實體檔案仍透過私有檔案 API 讀取。
 
 ### `POST /reviewer/applications/review/:publicId/request-revision`
 
@@ -784,6 +833,27 @@ Request：
 | `isActive` | boolean | 可省略 |
 | `keyword` | string | 姓名或 Email |
 
+Response 使用共用分頁格式，列表項目包含 `id`、`displayName`、`email`、`role`、`isActive`、`activatedAt`、`createdAt`。
+
+`GET /admin/users/:userId` response：
+
+```json
+{
+  "data": {
+    "id": 20,
+    "displayName": "承辦人",
+    "email": "reviewer@example.com",
+    "role": "reviewer",
+    "isActive": true,
+    "activatedAt": "2026-07-05T10:20:30.000+08:00",
+    "createdAt": "2026-07-01T09:00:00.000+08:00",
+    "updatedAt": "2026-07-05T10:20:30.000+08:00"
+  }
+}
+```
+
+不得回傳密碼雜湊、activation/reset token hash 或 session 資料。
+
 `POST /admin/users` request：
 
 ```json
@@ -811,6 +881,13 @@ Request：
 }
 ```
 
+| Endpoint | Request | Response |
+| --- | --- | --- |
+| `POST /admin/users/:userId/activate` | 空 body | 共用 `{ data: { ok: true } }` |
+| `POST /admin/users/:userId/deactivate` | 空 body 或 `reason` | 共用 `{ data: { ok: true } }` |
+| `POST /admin/users/:userId/resend-activation` | 空 body | 共用 `{ data: { ok: true } }` |
+| `POST /admin/users/:userId/send-password-reset` | 空 body | 共用 `{ data: { ok: true } }` |
+
 `POST /admin/users/:userId/transfer-admin` request：
 
 ```json
@@ -822,6 +899,46 @@ Request：
 `:userId` 必須是 `role = "admin"`、已完成密碼設定且尚未啟用的新管理員帳號。移交成功後，舊管理員停用、新管理員啟用，並撤銷舊管理員既有 session。
 
 ### Advisors
+
+`GET /admin/advisors` query：
+
+| 欄位 | 型別 | 說明 |
+| --- | --- | --- |
+| `keyword` | string | 姓名、員工編號或帳號 Email |
+| `isActive` | boolean | 可省略 |
+| `isDirector` | boolean | 可省略 |
+| `page` | number | 預設 `1` |
+| `pageSize` | number | 預設 `20`，最大 `100` |
+
+Response 使用共用分頁格式：
+
+```json
+{
+  "data": [
+    {
+      "id": 10,
+      "userId": 30,
+      "employeeNumber": "T001",
+      "name": "陳老師",
+      "titleCode": 6,
+      "department": "多媒體設計系",
+      "isActive": true,
+      "isDirector": false,
+      "account": {
+        "email": "teacher@example.com",
+        "isActive": true,
+        "activatedAt": "2026-07-05T10:20:30.000+08:00"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1
+  }
+}
+```
 
 `POST /admin/advisors` request：
 
@@ -859,6 +976,8 @@ Request：
   "reason": "主任異動。"
 }
 ```
+
+`POST /admin/advisors/:advisorId/activate` 與 `POST /admin/advisors/:advisorId/deactivate` request body 可為空；停用可選填 `reason`。成功時使用共用 `{ data: { ok: true } }` response。
 
 ### Applications（唯讀）
 
@@ -1090,7 +1209,7 @@ Response：
 
 `PATCH /admin/application-instructions/:instructionId` 接收上述可修改欄位的部分集合，但 body 至少要有一個欄位。尚未生效的說明可修改內容與有效期間；已生效的說明不原地改寫 `applicationType`、`sectionKey`、`title`、`content` 或有效期間，需建立新資料保留歷史。`displayOrder` 可獨立調整。
 
-`POST /admin/application-instructions/:instructionId/show` 與 `/hide` body 可為空。顯示操作只改變 `isVisible`，公開 API 仍會檢查有效期間。
+`POST /admin/application-instructions/:instructionId/show` 與 `POST /admin/application-instructions/:instructionId/hide` body 可為空。顯示操作只改變 `isVisible`，公開 API 仍會檢查有效期間。
 
 ### Audit Logs（第二版預留）
 
@@ -1176,6 +1295,19 @@ Response：
 ## 私有檔案 API
 
 附件與簽名 API 成功時回傳檔案 stream，不回傳 JSON。
+
+第一版使用此共用 response contract 的端點：
+
+| 角色 | Endpoint |
+| --- | --- |
+| 指導老師 | `GET /advisor/applications/:publicId/attachments/:attachmentPublicId` |
+| 指導老師 | `GET /advisor/applications/:publicId/signature` |
+| 承辦人 | `GET /reviewer/applications/:publicId/attachments/:attachmentPublicId` |
+| 承辦人 | `GET /reviewer/applications/:publicId/signature` |
+| 管理員 | `GET /admin/applications/:publicId/attachments/:attachmentPublicId` |
+| 管理員 | `GET /admin/applications/:publicId/signature` |
+
+各端點仍須依角色執行 Permission 與資料範圍檢查；共用檔案 response 不代表可以略過所有權驗證。
 
 Response header 依 [私有檔案儲存設計](file-storage.md#私有檔案讀取)：
 

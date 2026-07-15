@@ -452,8 +452,17 @@ REDIS_URL=redis://pr_b_redis:6379
 
 目標：完成老師登入後簽核或拒絕申請的流程。
 
-- [ ] 實作 advisor pending list。
-- [ ] 實作 advisor pending detail。
+- [ ] 實作指導老師申請 API：
+  - [ ] `GET /advisor/applications/pending`
+  - [ ] `GET /advisor/applications/pending/:publicId`
+  - [ ] `POST /advisor/applications/pending/:publicId/approve`
+  - [ ] `POST /advisor/applications/pending/:publicId/reject`
+  - [ ] `GET /advisor/applications/history`
+  - [ ] `GET /advisor/applications/history/:publicId`
+- [ ] 建立 `AdvisorApplicationService` 查詢能力：
+  - [ ] pending 只查目前 `status = 'pending_advisor'` 且 `advisor_id` 對應登入老師的申請。
+  - [ ] history 只查登入老師已處理、目前不在 `pending_advisor` 的申請。
+  - [ ] 補件重新提交後，申請重新出現在 pending；舊簽核與舊版本仍可從詳情歷史查詢。
 - [ ] 實作簽名檔案驗證與 storage。
 - [ ] 實作 advisor approve：
   - [ ] lock `point_applications`
@@ -470,13 +479,17 @@ REDIS_URL=redis://pr_b_redis:6379
   - [ ] 建立拒絕通知
 - [ ] 補指導老師流程測試：
   - [ ] 只能讀取與處理自己的申請。
+  - [ ] Pending / history 列表的狀態分類、分頁與排序正確，且同一申請不會同時出現在兩者。
+  - [ ] History detail 可讀取自己已處理申請的版本與簽核歷史，不能讀取其他老師申請。
   - [ ] 狀態、簽核期限、重複簽名與 reason 驗證。
   - [ ] 簽名成功／拒絕的狀態、review action、signature、email task 與檔案 rollback。
+- [ ] 每支 Phase 6 API 完成 route、Controller、Zod params/query/body、Authentication、Permission、response mapper 與 API test，不以只有 Service 完成視為交付。
 
 完成條件：
 
 - 指導老師只能處理自己的 `pending_advisor` 申請。
 - 簽核後申請進入 `under_review`。
+- 指導老師可分頁查詢自己目前待簽核與已處理的申請，且可讀取對應詳情。
 
 ## Phase 7：承辦人審核與補件
 

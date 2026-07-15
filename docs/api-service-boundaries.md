@@ -108,7 +108,7 @@ PostgreSQL constraint 是資料正確性的最後防線，API 不直接回傳 SQ
 | `GET`  | `/advisor/applications/:publicId/attachments/:attachmentPublicId` | `advisor_applications.attachments.read`    | 讀取自己申請範圍內附件             | `PrivateFileService.getApplicationAttachment` | 否          |
 | `GET`  | `/advisor/applications/:publicId/signature`                       | `advisor_applications.signatures.read_own` | 讀取自己在該申請目前版本的有效簽名 | `PrivateFileService.getOwnAdvisorSignature`   | 否          |
 
-指導老師 Service 必須驗證該申請的 `advisor_id` 對應目前登入老師，且待簽核操作只能在 `pending_advisor` 狀態與 `advisor_confirmation_expires_at` 未逾期時執行。
+指導老師 Service 必須驗證該申請的 `advisor_id` 對應目前登入老師，且待簽核操作只能在 `pending_advisor` 狀態與 `advisor_confirmation_expires_at` 未逾期時執行。Pending API 固定查詢目前 `pending_advisor`；history API 固定排除目前 `pending_advisor`。補件重新提交後申請回到 pending，舊版本、舊審核操作與失效簽名仍由詳情歷史保留。
 
 ## 承辦人 API
 
@@ -126,7 +126,7 @@ PostgreSQL constraint 是資料正確性的最後防線，API 不直接回傳 SQ
 | `GET`  | `/reviewer/applications/:publicId/attachments/:attachmentPublicId` | `applications.attachments.read`              | 讀取申請附件                       | `PrivateFileService.getApplicationAttachment`       | 否          |
 | `GET`  | `/reviewer/applications/:publicId/signature`                       | `applications.signatures.read`               | 讀取申請目前版本的有效指導老師簽名 | `PrivateFileService.getApplicationAdvisorSignature` | 否          |
 
-承辦人最終審核操作必須鎖定 `point_applications` 目標列，重新檢查狀態與目前版本。核准時必須在同一個 Transaction 中更新申請狀態、寫入審核紀錄、更新參與者核准點數、建立所有 `student_point_transactions` 與 email tasks。
+承辦人的 review queue / detail 範圍為 `under_review`、`needs_revision`，history list / detail 範圍為終止狀態 `approved`、`rejected`。最終審核操作必須鎖定 `point_applications` 目標列，重新檢查狀態與目前版本。核准時必須在同一個 Transaction 中更新申請狀態、寫入審核紀錄、更新參與者核准點數、建立所有 `student_point_transactions` 與 email tasks。
 
 ## 管理員 API
 
