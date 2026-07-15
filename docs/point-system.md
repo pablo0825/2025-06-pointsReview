@@ -1,6 +1,6 @@
 # 點數系統
 
-本文件描述點數規則、計算方式、規則版本、學生點數流水帳、核准後異動與公開點數總表。申請核心資料表請參考 [資料模型](data-model.md)，共用資料庫限制請參考 [Schema 設計規範](schema-conventions.md)。
+本文件描述點數規則、計算方式、規則版本、學生點數流水帳、核准後異動與公開點數總表。第一版實作規則管理、原始 `award` 流水帳與公開查詢；核准後 `adjustment`／`reversal` 流程為第二版。申請核心資料表請參考 [資料模型](data-model.md)，共用資料庫限制請參考 [Schema 設計規範](schema-conventions.md)。
 
 ## 競賽點數規則 `competition_point_rules`
 
@@ -148,11 +148,13 @@ minimum_participants <= participants.length <= maximum_participants
 
 前端可依目前有效規則提供即時人數提示；Zod 只驗證至少一人與合理技術上限，避免 request 過大。最終可信驗證由 Service 在 Transaction 內查詢 `application_type_participant_rules` 後完成。資料庫不使用 Trigger 統計同一 `application_id` 底下的 `application_participants` 筆數。
 
+第一版提供管理端列表、建立新版本與提前停用 API。建立接續版本時，Service 必須在同一個 Transaction 中將目前規則的 `effective_to` 設為新規則的 `effective_from`，再建立新規則；若只停用而不接續，使用獨立停用 API。
+
 ## 申請說明內容 `application_instructions`
 
 `application_instructions` 保存前台說明文字，例如年度辦法、附件提醒與常見問題。這張表不作為點數、人數或審核驗證依據，也不與申請保存關聯；正式規則數值仍以各規則表為準。
 
-前端查詢說明內容時，預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的資料。管理員後台可查詢所有歷史說明。`content` 可保存 Markdown，前端渲染時必須做 XSS 防護。
+前端預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的資料；歷年辦法頁可要求包含 `effective_to` 已過期、但仍為公開狀態的內容。尚未到 `effective_from` 的未來內容不公開。管理員後台可查詢所有歷史說明，建立未來版本，並調整顯示狀態與排序。尚未生效的說明可修改；已生效內容不可原地改寫，年度或文案改版時建立新資料保留歷史。`content` 可保存 Markdown，前端渲染時必須做 XSS 防護。
 
 ## 規則版本管理共用政策
 
@@ -264,6 +266,8 @@ EXCLUDE USING gist (
 
 ## 學生點數異動申請 `student_point_change_requests`
 
+**版本範圍：第二版。** 第一版只保留資料契約，不掛載對應 API。
+
 承辦人針對核准後點數提出的異動或沖銷申請。承辦人只能提出申請，不能直接修改學生點數流水帳；管理員核准後，系統才建立實際的點數異動紀錄。資料表欄位、`change_type`／`status` 允許值、Constraint 與 partial unique index 請參考 [資料模型 - student_point_change_requests](data-model.md#學生點數異動申請-student_point_change_requests)。
 
 操作流程：
@@ -292,7 +296,7 @@ EXCLUDE USING gist (
 
 ## 學生點數流水帳 `student_point_transactions`
 
-申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。資料表欄位、`point_category`／`transaction_type` 允許值、Constraint、複合外鍵與 partial unique index 請參考 [資料模型 - student_point_transactions](data-model.md#學生點數流水帳-student_point_transactions)。
+申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。第一版只建立 `award`；`adjustment` 與 `reversal` 寫入流程於第二版啟用。資料表欄位、`point_category`／`transaction_type` 允許值、Constraint、複合外鍵與 partial unique index 請參考 [資料模型 - student_point_transactions](data-model.md#學生點數流水帳-student_point_transactions)。
 
 業務寫入規則（Service 層）：
 
@@ -300,9 +304,9 @@ EXCLUDE USING gist (
 - 申請狀態更新為 `approved`、寫入 `point_applications.closed_at` 與建立所有學生點數異動，必須在同一個 PostgreSQL Transaction 中完成。
 - 建立 `award` 時，必須把 `application_participants` 的 `academic_year`、`grade`、`class_number` 寫入流水帳快照欄位。
 - 核准前承辦人調整點數時，流水帳只寫入最終 `approved_points`，不需要額外建立差額紀錄。
-- 核准後若需要更正點數，不可修改或刪除原始流水帳；承辦人必須提出 `student_point_change_requests`，由管理員核准後新增一筆 `adjustment` 或 `reversal`。
-- `adjustment` 與 `reversal` 必須沿用目標原始 `award` 的姓名、學年度、年級與班級快照，避免更正紀錄被歸到學生最新班級。
-- `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員。
+- 第一版核准後不提供更正 API，也不得直接修改或刪除原始流水帳；需更正時先依正式人工程序處理，第二版再啟用 `student_point_change_requests`。
+- 第二版的 `adjustment` 與 `reversal` 必須沿用目標原始 `award` 的姓名、學年度、年級與班級快照，避免更正紀錄被歸到學生最新班級。
+- 第二版的 `adjustment` 與 `reversal` 的 `created_by_user_id` 必須是核准異動申請的管理員。
 - `point_category` 必須對應該申請的 `application_type`。
 
 ### 點數查詢方式
@@ -334,7 +338,7 @@ WHERE student_number = $1;
 流水帳只建立：award +8
 ```
 
-核准後更正：
+核准後更正（第二版）：
 
 ```text
 原始核准紀錄：award +10

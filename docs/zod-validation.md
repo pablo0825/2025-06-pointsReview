@@ -291,7 +291,7 @@ Zod 負責欄位格式、enum、正數點數與 `effectiveFrom < effectiveTo`；
 
 `applicationInstructionCreateSchema` 驗證 `applicationType`、非空白 `sectionKey`、`title`、`content`、非負整數 `displayOrder`、boolean `isVisible` 與有效期間。`applicationInstructionUpdateSchema` 使用 `.partial()` 後再限制至少有一個欄位，不能接受空物件。
 
-公開查詢的 `publicApplicationInstructionQuerySchema` 只接收必要的 `applicationType`；公開端不接受 `isVisible` 或任意日期參數，避免讀取未公開或尚未生效內容。管理端 list query 才可接收 `isVisible`、`includeExpired` 與分頁欄位。
+公開查詢的 `publicApplicationInstructionQuerySchema` 接收必要的 `applicationType` 與可選 boolean `includeHistorical`。公開端不接受 `isVisible` 或任意日期參數；即使查詢歷史，也只能讀取已開始生效且仍標示公開的內容，不能讀取未公開或尚未生效內容。管理端 list query 才可接收 `isVisible`、`includeExpired` 與分頁欄位。
 
 「是否已生效而可修改哪些欄位」需要讀取既有資料，屬於 `ApplicationInstructionAdminService`。Zod 只確認 request 本身格式。
 

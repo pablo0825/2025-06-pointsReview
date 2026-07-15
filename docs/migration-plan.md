@@ -137,6 +137,10 @@ Migration 必須遵守資料表外鍵與共用物件依賴順序。
 
 循環外鍵不得在 `point_applications` 的 `CREATE TABLE` 階段建立，必須等 `application_versions` 建立後再用 `ALTER TABLE` 補上。
 
+`student_point_change_requests` 是第二版預留表。第一版 migration 可先建立此表以固定資料契約，但第一版不因此開放點數異動 API。
+
+既有 `create_application_instructions` migration 若已使用 `UNIQUE (application_type, section_key)`，不得回頭修改已共享的 migration；應新增 forward migration，移除舊 constraint、建立 `UNIQUE (application_type, section_key, effective_from)`，並加入同一 `(application_type, section_key)` 有效期間不可重疊的 Exclusion Constraint，才能保存同一說明區塊的歷年版本且避免同時顯示兩個版本。
+
 ## Migration 寫法規則
 
 - 每個 migration 檔案只處理一個清楚主題，例如一張資料表、一組高度相關的 constraint 或一個 view。

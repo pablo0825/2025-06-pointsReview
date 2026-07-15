@@ -1,6 +1,6 @@
 # 資料庫 Schema
 
-本文件保存已確認、可轉換為 Migration 的 PostgreSQL SQL。邏輯資料表說明請參考 [資料模型](data-model.md)，共用技術規範請參考 [Schema 設計規範](schema-conventions.md)。
+本文件保存已確認、可轉換為 Migration 的 PostgreSQL SQL。Schema 可包含第二版預留資料表，是否提供 API 仍以實作計畫與 API 文件為準；`student_point_change_requests` 在第一版不掛載對應 API。邏輯資料表說明請參考 [資料模型](data-model.md)，共用技術規範請參考 [Schema 設計規範](schema-conventions.md)。
 
 ## Schema 完成狀態
 
@@ -473,8 +473,16 @@ CREATE TABLE application_instructions (
   CONSTRAINT application_instructions_effective_range_check
     CHECK (effective_to IS NULL OR effective_to > effective_from),
 
-  CONSTRAINT application_instructions_section_unique
-    UNIQUE (application_type, section_key)
+  CONSTRAINT application_instructions_section_version_unique
+    UNIQUE (application_type, section_key, effective_from)
+);
+
+ALTER TABLE application_instructions
+ADD CONSTRAINT application_instructions_section_no_overlap
+EXCLUDE USING gist (
+  application_type WITH =,
+  section_key WITH =,
+  daterange(effective_from, effective_to, '[)') WITH &&
 );
 ```
 
@@ -483,9 +491,10 @@ CREATE TABLE application_instructions (
 - `application_instructions` 是前台說明內容，不作為審核依據，不與 `point_applications` 建立關聯。
 - `content` 可保存 Markdown；前端渲染時必須做 XSS 防護。
 - 正式規則數值不得手動寫入說明表作為驗證依據；前端需要顯示規則數值時，應由對應規則 API 回傳。
-- 前台預設查詢 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容。
-- 管理員後台可查詢所有歷史說明。
-- 不建立 no-overlap constraint；同一申請類型可同時顯示多份說明。
+- 前台預設查詢 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容；歷史查詢可包含已過期且仍公開的內容，但不得回傳尚未生效資料。
+- 管理員後台可查詢所有歷史說明；相同 `section_key` 可用不同 `effective_from` 建立年度或文案版本。
+- 尚未生效內容可修改；已生效內容不可原地改寫，應建立新版本。顯示狀態與排序可依管理需求調整。
+- 相同 `(application_type, section_key)` 的版本期間不得重疊；不同 `section_key` 可在同一申請類型中同時顯示，例如年度辦法、附件說明與 FAQ。
 - `application_instructions` 必須掛上共用 `set_updated_at()` Trigger。
 
 索引：
@@ -499,8 +508,9 @@ WHERE is_visible = TRUE;
 建立順序：
 
 1. 建立 `application_instructions`。
-2. 建立 `idx_application_instructions_visible`。
-3. 為 `application_instructions` 掛上 `set_updated_at()` Trigger。
+2. 建立 `application_instructions_section_no_overlap` Exclusion Constraint。
+3. 建立 `idx_application_instructions_visible`。
+4. 為 `application_instructions` 掛上 `set_updated_at()` Trigger。
 
 ## `point_applications`
 
@@ -1670,6 +1680,8 @@ WHERE transaction_type = 'award';
 3. 建立七個索引。
 
 ## `student_point_change_requests`
+
+此表可隨第一版 schema 建立，但第一版不提供對應 Service、route 或管理介面。
 
 ```sql
 CREATE TABLE student_point_change_requests (

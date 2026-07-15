@@ -194,6 +194,11 @@ REDIS_URL=redis://pr_b_redis:6379
   - `migrate:status` 結果為 migration files 20、applied migrations 20、pending migrations 0。
   - 已執行 `seed:development`，確認初始人數規則與四類點數規則 seed 筆數符合文件。
   - 已確認 `student_points_summary` View 可查詢，且所有具有 `updated_at` 的實體表都有 `set_updated_at()` trigger。
+- [ ] 新增 `application_instructions` 唯一鍵修正的 forward migration：
+  - [ ] 移除既有 `(application_type, section_key)` unique constraint。
+  - [ ] 建立 `(application_type, section_key, effective_from)` unique constraint，允許同一區塊保存歷年版本。
+  - [ ] 建立同一 `(application_type, section_key)` 有效期間不可重疊的 Exclusion Constraint。
+  - [ ] 重新執行乾淨資料庫 migration verification。
 
 完成條件：
 
@@ -399,7 +404,7 @@ REDIS_URL=redis://pr_b_redis:6379
 - [ ] 建立四種點數規則查詢。
 - [ ] 建立公開基礎資料 API：
   - [ ] `GET /public/advisors`
-  - [ ] `GET /public/application-instructions?applicationType=...`
+  - [ ] `GET /public/application-instructions?applicationType=...&includeHistorical=...`
 - [ ] 實作管理端點數規則版本管理：
   - [ ] `GET /admin/point-rules?applicationType=...`
   - [ ] `POST /admin/point-rules`

@@ -139,7 +139,7 @@ Session 有效期限、Cookie、CSRF 與 Rate Limit 規則請參考 [登入、Se
 - `ip_address` 與 `user_agent` 必須同時存在或同時為 `NULL`。
 - `metadata` 不得保存密碼、原始 token、token hash、session token、CSRF token、附件內容、簽名內容、完整 storage key、SQL error 原文或 stack trace。
 - `audit_logs` 為不可變稽核紀錄，沒有 `updated_at`，不掛 `set_updated_at()` Trigger。
-- 第一版只允許管理員查詢，不提供修改或刪除 API。
+- 第一版會寫入必要紀錄，但不提供管理端查詢、修改或刪除 API；管理端查詢延後到第二版。
 
 `action`、`resource_type`、必記錄事件、metadata 規則與查詢權限請參考 [通用系統稽核紀錄](audit-logs.md)。
 
@@ -255,7 +255,7 @@ WHERE is_director = TRUE AND is_active = TRUE;
 | --- | --- |
 | `id` | 主鍵 |
 | `application_type` | 申請類型 |
-| `section_key` | 說明區塊識別值，同一申請類型內必須唯一 |
+| `section_key` | 說明區塊識別值；同一申請類型可在不同生效日建立歷史版本 |
 | `title` | 顯示標題，例如 `114年度競賽點數辦法` |
 | `content` | 說明內容，使用 `TEXT`，可保存 Markdown |
 | `display_order` | 前端顯示排序，數字越小越前面 |
@@ -269,10 +269,12 @@ WHERE is_director = TRUE AND is_active = TRUE;
 
 - `application_instructions` 保存補充說明文字，不保存正式規則數值；人數、點數、累積上限等可驗證規則必須由正式規則表提供。
 - `content` 可保存 Markdown；前端渲染 Markdown 時必須做 XSS 防護。
-- 前台預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容。
+- 前台預設只顯示 `is_visible = TRUE` 且查詢日期落在 `[effective_from, effective_to)` 的內容；歷史查詢可包含已過期且仍公開的內容，但不回傳尚未生效資料。
 - 管理員後台可查看所有歷史說明，包含已過期或 `is_visible = FALSE` 的內容。
-- `section_key` 是穩定代碼；`title` 是顯示文字，可隨年度或文案調整。
-- 不建立 no-overlap constraint；同一申請類型允許同時顯示多份說明，例如年度辦法、附件說明與 FAQ。
+- `section_key` 是跨年度沿用的穩定代碼；`title` 是顯示文字，可包含年度。
+- 唯一鍵使用 `(application_type, section_key, effective_from)`，允許相同區塊建立不同年度或生效日的版本。
+- 尚未生效內容可修改；已生效內容不可原地改寫，文案改版時建立新資料。`is_visible` 與 `display_order` 可依管理需求調整。
+- 相同 `(application_type, section_key)` 的版本期間不得重疊，由 Exclusion Constraint 保證；不同 `section_key` 可同時顯示，例如年度辦法、附件說明與 FAQ。
 - 必須掛上共用 `set_updated_at()` Trigger。
 
 ## 點數申請 `point_applications`
@@ -434,7 +436,7 @@ advisor-sign-expired:application-100:version-2
 
 核准後規則：
 
-- 核准完成後，`approved_points` 不可再修改；後續更正必須走 `student_point_change_requests` 流程。
+- 核准完成後，`approved_points` 不可再修改；第一版不提供核准後更正 API，第二版的更正必須走 `student_point_change_requests` 流程。
 
 建議使用 partial unique index，限制每筆申請只能有一位申請人：
 
@@ -1033,7 +1035,7 @@ signatures/applications/100/version-2/550e8400.png
 
 ## 學生點數流水帳 `student_point_transactions`
 
-保存申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。點數查詢方式、核准前後調整流程、累積上限驗證請參考 [點數系統 - 學生點數流水帳](point-system.md#學生點數流水帳-student_point_transactions)。
+保存申請核准後每位參與者實際取得的點數，以及核准後的更正紀錄。第一版只會寫入 `award`；`adjustment` 與 `reversal` 是第二版預留。點數查詢方式、核准前後調整流程、累積上限驗證請參考 [點數系統 - 學生點數流水帳](point-system.md#學生點數流水帳-student_point_transactions)。
 
 系統不建立學生主資料庫，因此使用 `student_number` 識別學生；姓名、學年度、年級與班級皆保存建立異動時的不可變資料快照。
 
@@ -1085,6 +1087,8 @@ signatures/applications/100/version-2/550e8400.png
 - 流水帳為**不可變稽核紀錄**，沒有 `updated_at`，不掛 Trigger；不可實體刪除，由 application 層保證沒有對應的 DELETE／UPDATE endpoint。
 
 ## 學生點數異動申請 `student_point_change_requests`
+
+**版本範圍：第二版預留。** 第一版可建立資料表，但不提供對應 Service、route 或管理介面。
 
 保存承辦人針對核准後點數提出的異動或沖銷申請。承辦人只能提出申請，不能直接修改學生點數流水帳；管理員核准後，系統才建立實際的點數異動紀錄。操作流程、權限邊界與業務驗證請參考 [點數系統 - 學生點數異動申請](point-system.md#學生點數異動申請-student_point_change_requests)。
 

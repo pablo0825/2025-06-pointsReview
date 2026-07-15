@@ -64,7 +64,7 @@ PostgreSQL constraint 是資料正確性的最後防線，API 不直接回傳 SQ
 | Method | Path                                    | 用途                                                                | Service                                          | Transaction |
 | ------ | --------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------ | ----------- |
 | `GET`  | `/public/advisors`                      | 查詢目前可選擇的指導老師                                            | `PublicAdvisorService.listAvailable`              | 否          |
-| `GET`  | `/public/application-instructions`      | 依申請類型查詢目前公開的申請說明                                    | `ApplicationInstructionPublicService.listVisible` | 否          |
+| `GET`  | `/public/application-instructions`      | 依申請類型查詢目前或歷史公開申請說明                                | `ApplicationInstructionPublicService.listVisible` | 否          |
 | `POST` | `/public/applications`                  | 建立申請、參與者、類型專屬資料、附件 metadata、第一版快照與通知任務 | `ApplicationSubmissionService.submitApplication` | 是          |
 | `GET`  | `/public/applications/revisions/:token` | 驗證補件 token 並取得可編輯申請內容                                 | `RevisionService.getRevisionDraft`               | 否          |
 | `POST` | `/public/applications/revisions/:token` | 補件重新提交、建立新版本、使舊簽名失效、重新寄送老師簽核通知        | `RevisionService.resubmitApplication`            | 是          |

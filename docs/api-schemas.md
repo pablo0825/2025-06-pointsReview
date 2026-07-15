@@ -216,8 +216,9 @@ Query：
 | 欄位 | 型別 | 說明 |
 | --- | --- | --- |
 | `applicationType` | string | 必填，四種申請類型之一 |
+| `includeHistorical` | boolean | 預設 `false`；是否包含已過期的公開說明 |
 
-只回傳查詢當下 `isVisible = true` 且位於有效期間內的說明，依 `displayOrder`、`id` 排序。
+預設只回傳查詢當下 `isVisible = true` 且位於有效期間內的說明。`includeHistorical = true` 時，另外包含已過期但仍為公開狀態的說明，供歷年辦法頁查詢；尚未到 `effectiveFrom` 的未來內容仍不公開。結果依 `effectiveFrom` 倒序，再依 `displayOrder`、`id` 排序。
 
 ```json
 {
