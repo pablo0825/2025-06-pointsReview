@@ -34,6 +34,13 @@ export type Permission =
   | "point_rules.list"
   | "point_rules.create"
   | "point_rules.deactivate"
+  | "participant_rules.list"
+  | "participant_rules.create"
+  | "participant_rules.deactivate"
+  | "application_instructions.list"
+  | "application_instructions.create"
+  | "application_instructions.update"
+  | "application_instructions.visibility"
   | "student_point_transactions.read"
   | "users.list"
   | "users.read"
@@ -96,6 +103,13 @@ export const rolePermissions: Record<Role, ReadonlySet<Permission>> = {
     "point_rules.list",
     "point_rules.create",
     "point_rules.deactivate",
+    "participant_rules.list",
+    "participant_rules.create",
+    "participant_rules.deactivate",
+    "application_instructions.list",
+    "application_instructions.create",
+    "application_instructions.update",
+    "application_instructions.visibility",
     "point_change_requests.list",
     "point_change_requests.read",
     "point_change_requests.approve",
