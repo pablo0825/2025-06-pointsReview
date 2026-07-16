@@ -279,13 +279,13 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 實作 CSRF middleware。
 - [x] 實作 `Permission` 型別與 `rolePermissions` mapping。
 - [x] 實作 permission middleware。
-- [ ] 補 Auth 自動化測試：
-  - [ ] Login 成功、失敗與不洩漏帳號狀態的回應。
-  - [ ] Session cookie 的 `HttpOnly`、`Secure`、`SameSite`、`Path` 與有效期限。
-  - [ ] Session 閒置期限、絕對期限與 revoked session。
-  - [ ] Logout 撤銷目前 session。
-  - [ ] CSRF token 取得、輪替、缺漏與錯誤 token。
-  - [ ] advisor / reviewer / admin permission mapping 與 `403 forbidden`。
+- [x] 補 Auth 自動化測試：
+  - [x] Login 成功、失敗與不洩漏帳號狀態的回應。
+  - [x] Session cookie 的 `HttpOnly`、`Secure`、`SameSite`、`Path` 與有效期限。
+  - [x] Session 閒置期限、絕對期限與 revoked session。
+  - [x] Logout 撤銷目前 session。
+  - [x] CSRF token 取得、輪替、缺漏與錯誤 token。
+  - [x] advisor / reviewer / admin permission mapping 與 `403 forbidden`。
 
 完成條件：
 
@@ -705,8 +705,8 @@ Phase 0 啟動隔離與 Phase 2 測試基礎已有進度，目前先完成 Auth 
 - [x] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
 - [x] 保留 Phase 1 乾淨資料庫 migration / seed 人工驗證紀錄；自動化 migration verification command 延後到 Phase 10 / 部署前 CI 收斂。
 - [x] 完成 Phase 2 body limit、client IP helper 與敏感 log 設定；正式 CORS / trusted proxy 延後到 Phase 10 / 部署前。
-- [ ] 為目前已完成的 transaction、validation 與 constraint mapping 補 Phase 2 測試。
-- [ ] 為 Login、Session、Cookie、CSRF 與 Permission 補 Phase 3 Auth 核心測試。
+- [x] 為目前已完成的 transaction、validation 與 constraint mapping 補 Phase 2 測試。
+- [x] 為 Login、Session、Cookie、CSRF 與 Permission 補 Phase 3 Auth 核心測試。
 - [ ] Phase 3 完成後進入 Phase 4.1，使用 development / test seed 帳號實作不依賴 Email 的管理資料功能。
 - [ ] 需要通用通知投遞能力時進入 Phase 4.2；需要正式帳號 onboarding 時再進入 Phase 4.3。
 - [ ] 核心業務 API 穩定後，在 Phase 9 一次完成 Auth 與公開 API Rate Limit。
