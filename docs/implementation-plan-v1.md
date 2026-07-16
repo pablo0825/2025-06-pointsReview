@@ -191,14 +191,16 @@ REDIS_URL=redis://pr_b_redis:6379
 - [x] 建立初始點數規則 seed。
 - [x] 驗證乾淨資料庫可從第一個 migration 跑到最新版本。
   - 已使用暫時資料庫 `points_review_verify` 從空資料庫執行 `migrate:up`。
-  - `migrate:status` 結果為 migration files 20、applied migrations 20、pending migrations 0。
+  - `migrate:status` 結果為 migration files 21、applied migrations 21、pending migrations 0。
   - 已執行 `seed:development`，確認初始人數規則與四類點數規則 seed 筆數符合文件。
   - 已確認 `student_points_summary` View 可查詢，且所有具有 `updated_at` 的實體表都有 `set_updated_at()` trigger。
-- [ ] 新增 `application_instructions` 唯一鍵修正的 forward migration：
-  - [ ] 移除既有 `(application_type, section_key)` unique constraint。
-  - [ ] 建立 `(application_type, section_key, effective_from)` unique constraint，允許同一區塊保存歷年版本。
-  - [ ] 建立同一 `(application_type, section_key)` 有效期間不可重疊的 Exclusion Constraint。
-  - [ ] 重新執行乾淨資料庫 migration verification。
+- [x] 新增 `application_instructions` 唯一鍵修正的 forward migration：
+  - [x] 移除既有 `(application_type, section_key)` unique constraint。
+  - [x] 建立 `(application_type, section_key, effective_from)` unique constraint，允許同一區塊保存歷年版本。
+  - [x] 建立同一 `(application_type, section_key)` 有效期間不可重疊的 Exclusion Constraint。
+  - [x] 重新執行乾淨資料庫 migration verification。
+    - 已確認相鄰半開區間可共存、相同生效日由 version unique constraint 拒絕、重疊期間由 Exclusion Constraint 拒絕。
+    - 已確認最新 migration 可執行 `migrate:down` 後重新 `migrate:up`，且重複執行 migration runner 不會再次套用已完成 migration。
 
 完成條件：
 
@@ -701,7 +703,7 @@ Phase 0 啟動隔離與 Phase 2 測試基礎已有進度，目前先完成 Auth 
 
 - [x] 完成 Phase 0 PostgreSQL app / server 啟動分離與 legacy Mongo 隔離。
 - [x] 完成 Phase 2 test runner、測試資料庫與 Express app test harness。
-- [ ] 保留 Phase 1 乾淨資料庫 migration / seed 人工驗證紀錄；自動化 migration verification command 延後到 Phase 10 / 部署前 CI 收斂。
+- [x] 保留 Phase 1 乾淨資料庫 migration / seed 人工驗證紀錄；自動化 migration verification command 延後到 Phase 10 / 部署前 CI 收斂。
 - [x] 完成 Phase 2 body limit、client IP helper 與敏感 log 設定；正式 CORS / trusted proxy 延後到 Phase 10 / 部署前。
 - [ ] 為目前已完成的 transaction、validation 與 constraint mapping 補 Phase 2 測試。
 - [ ] 為 Login、Session、Cookie、CSRF 與 Permission 補 Phase 3 Auth 核心測試。

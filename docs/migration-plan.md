@@ -47,6 +47,7 @@ migrations/
   20260711001800000_create_student_point_transactions.sql
   20260711001900000_create_student_point_change_requests.sql
   20260711002000000_create_student_points_summary_view.sql
+  20260716000100000_version_application_instructions.sql
 
 seeds/
   development/
