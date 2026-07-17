@@ -17,6 +17,7 @@ export type ApiErrorCode =
   | "too_many_files"
   | "file_missing"
   | "email_already_exists"
+  | "account_state_conflict"
   | "active_admin_required"
   | "active_director_conflict"
   | "internal_error";

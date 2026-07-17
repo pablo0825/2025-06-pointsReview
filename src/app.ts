@@ -7,6 +7,7 @@ import logger from "morgan";
 import path from "path";
 
 import authRoute from "./routes/auth.route";
+import adminUsersRoute from "./routes/adminUsers.route";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 
 interface LegacyMongoRoutes {
@@ -43,6 +44,7 @@ export function createApp(options: CreateAppOptions = {}) {
   }
 
   app.use("/auth", authRoute);
+  app.use("/admin/users", adminUsersRoute);
 
   app.use((_req, _res, next) => {
     next(createError(404, "找不到路由"));

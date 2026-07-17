@@ -42,6 +42,7 @@ function assertUsingTestDatabase(): void {
 
 export async function resetAuthTestData(): Promise<void> {
   assertUsingTestDatabase();
+  await pool.query("DELETE FROM audit_logs");
   await pool.query("DELETE FROM user_sessions");
   await pool.query("DELETE FROM advisors");
   await pool.query("DELETE FROM users");
@@ -172,7 +173,10 @@ export async function updateAuthTestSession(
   );
 }
 
-export function getResponseCookie(response: Response, cookieName: string): string {
+export function getResponseCookie(
+  response: Response,
+  cookieName: string,
+): string {
   const setCookie = response.headers["set-cookie"] as unknown as
     | string[]
     | undefined;
