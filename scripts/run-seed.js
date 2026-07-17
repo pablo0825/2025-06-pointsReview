@@ -14,6 +14,12 @@ function assertSeedEnvironment(value) {
   }
 }
 
+function assertNonProductionRuntime() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Development and test seeds cannot run in production");
+  }
+}
+
 function readSeedFiles(environment) {
   const seedDir = path.join(seedsRoot, environment);
 
@@ -98,6 +104,7 @@ async function runSeed(client, seed) {
 
 async function main() {
   assertSeedEnvironment(seedEnvironment);
+  assertNonProductionRuntime();
 
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is required for seed scripts");
