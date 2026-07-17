@@ -217,9 +217,10 @@ describe.sequential("Phase 3 Auth API", () => {
     await expectSessionRejected(agent);
   });
 
-  it("rejects a session when the account is deactivated", async () => {
+  it("rejects an existing session when the owning account is deactivated", async () => {
     const { agent, user } = await loginUser();
 
+    // 模擬管理員停用帳號；session row 仍存在，但驗證時不應再接受此使用者。
     await pool.query("UPDATE users SET is_active = FALSE WHERE id = $1", [
       user.id,
     ]);
