@@ -20,6 +20,9 @@ export type ApiErrorCode =
   | "account_state_conflict"
   | "active_admin_required"
   | "active_director_conflict"
+  | "employee_number_already_exists"
+  | "advisor_state_conflict"
+  | "active_director_required"
   | "internal_error";
 
 export interface ValidationErrorField {

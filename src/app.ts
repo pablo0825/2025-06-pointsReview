@@ -7,6 +7,7 @@ import logger from "morgan";
 import path from "path";
 
 import authRoute from "./routes/auth.route";
+import adminAdvisorsRoute from "./routes/adminAdvisors.route";
 import adminUsersRoute from "./routes/adminUsers.route";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 
@@ -44,6 +45,7 @@ export function createApp(options: CreateAppOptions = {}) {
   }
 
   app.use("/auth", authRoute);
+  app.use("/admin/advisors", adminAdvisorsRoute);
   app.use("/admin/users", adminUsersRoute);
 
   app.use((_req, _res, next) => {
