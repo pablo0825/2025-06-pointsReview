@@ -14,6 +14,7 @@ import { requirePermission } from "../middlewares/permission.middleware";
 import { validateRequest } from "../middlewares/validateRequest.middleware";
 import {
   adminUserListQuerySchema,
+  adminUserEmptyBodySchema,
   adminUserParamsSchema,
   deactivateAdminUserBodySchema,
   updateAdminUserBodySchema,
@@ -54,7 +55,10 @@ router.post(
   authenticateSession,
   csrfProtection,
   requirePermission("users.activate"),
-  validateRequest({ params: adminUserParamsSchema }),
+  validateRequest({
+    params: adminUserParamsSchema,
+    body: adminUserEmptyBodySchema,
+  }),
   asyncHandler(activateUser),
 );
 

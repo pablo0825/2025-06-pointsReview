@@ -26,6 +26,8 @@ export const updateAdminUserBodySchema = z
     message: "至少需要提供一個可更新欄位。",
   });
 
+export const adminUserEmptyBodySchema = z.object({}).strict().default({});
+
 export const deactivateAdminUserBodySchema = z
   .object({
     reason: z.string().trim().min(1).max(500).optional(),
