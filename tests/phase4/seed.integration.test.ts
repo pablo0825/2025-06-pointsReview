@@ -1,8 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { verifyPassword } from "../../src/auth/password";
+import { createApp } from "../../src/app";
 import { closePool, pool } from "../../src/db/pool";
 import { getTestDatabaseUrl } from "../helpers/database";
 
@@ -102,6 +104,18 @@ describe.sequential("Phase 4.1 account seeds", () => {
         await expect(
           verifyPassword("PointsReview-Dev-2026!", user.password_hash),
         ).resolves.toBe(true);
+
+        const loginResponse = await request(createApp())
+          .post("/auth/login")
+          .send({
+            email: user.email,
+            password: "PointsReview-Dev-2026!",
+          });
+        expect(loginResponse.status).toBe(200);
+        expect(loginResponse.body.data.user).toMatchObject({
+          email: user.email,
+          role: user.role,
+        });
       }
 
       const advisors = await pool.query<{
