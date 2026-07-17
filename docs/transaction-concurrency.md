@@ -327,6 +327,8 @@ Transaction 內步驟：
 
 資料庫 `one_active_director` partial unique index 防止同時存在兩位啟用主任。
 
+停用指導老師前，Service 必須鎖定目標資料列並檢查 `is_director`。現任主任不得直接停用，應回傳 `active_director_required`；管理員先完成上述主任異動後，才能停用原主任。若目標已是目前主任，重複執行 `assignDirector` 視為冪等成功，不重複建立稽核紀錄。
+
 ## 管理員移交
 
 Service：`UserAdminService.transferAdmin` 或維運指令。

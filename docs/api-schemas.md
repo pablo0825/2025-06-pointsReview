@@ -834,6 +834,7 @@ Request：
 | `keyword` | string | 姓名或 Email |
 
 Response 使用共用分頁格式，列表項目包含 `id`、`displayName`、`email`、`role`、`isActive`、`activatedAt`、`createdAt`。
+未指定排序時固定依 `createdAt DESC, id DESC` 回傳，確保分頁結果穩定。
 
 `GET /admin/users/:userId` response：
 
@@ -873,6 +874,8 @@ Response 使用共用分頁格式，列表項目包含 `id`、`displayName`、`e
 }
 ```
 
+成功時回傳更新後的安全使用者資料，格式與 `GET /admin/users/:userId` 的 `data` 相同；不得回傳密碼雜湊、token hash 或 session 資料。
+
 啟用、停用、重寄啟用信、寄送密碼重設信 request body 第一版可為空；停用若需要原因，可使用：
 
 ```json
@@ -887,6 +890,8 @@ Response 使用共用分頁格式，列表項目包含 `id`、`displayName`、`e
 | `POST /admin/users/:userId/deactivate` | 空 body 或 `reason` | 共用 `{ data: { ok: true } }` |
 | `POST /admin/users/:userId/resend-activation` | 空 body | 共用 `{ data: { ok: true } }` |
 | `POST /admin/users/:userId/send-password-reset` | 空 body | 共用 `{ data: { ok: true } }` |
+
+Phase 4.1 的啟用與停用操作採冪等語意：目標已在要求狀態時仍回傳成功，但不得重複更新資料、撤銷 session 或建立 audit log。尚未完成首次 activation 或尚未設定密碼的帳號不得透過 activate endpoint 直接啟用，回傳 `409 account_state_conflict`。停用目前唯一啟用管理員會回傳 `409 active_admin_required`。
 
 `POST /admin/users/:userId/transfer-admin` request：
 
@@ -940,6 +945,8 @@ Response 使用共用分頁格式：
 }
 ```
 
+未指定排序時固定依 `createdAt DESC, id DESC` 回傳，確保分頁結果穩定。
+
 `POST /admin/advisors` request：
 
 ```json
@@ -969,6 +976,8 @@ Response 使用共用分頁格式：
 }
 ```
 
+成功時回傳更新後的指導老師資料，格式與列表項目相同。員工編號重複時回傳 `409 employee_number_already_exists`。
+
 `POST /admin/advisors/:advisorId/assign-director` request：
 
 ```json
@@ -978,6 +987,8 @@ Response 使用共用分頁格式：
 ```
 
 `POST /admin/advisors/:advisorId/activate` 與 `POST /admin/advisors/:advisorId/deactivate` request body 可為空；停用可選填 `reason`。成功時使用共用 `{ data: { ok: true } }` response。
+
+Phase 4.1 的指導老師啟用與停用採冪等語意；目標已在要求狀態時不得重複更新或建立 audit log。停用目前主任時回傳 `409 active_director_required`，管理員必須先用 `assign-director` 指定另一位啟用中的老師。指定主任只允許管理員執行；目標老師未啟用時回傳 `409 advisor_state_conflict`。重複指定同一位現任主任時回傳成功，但不重複建立 audit log。
 
 ### Applications（唯讀）
 
@@ -1345,8 +1356,12 @@ Cache-Control: no-store
 | `too_many_files` | 400 | 附件數量超過上限 |
 | `file_missing` | 404 | 檔案 metadata 存在但實體檔案遺失 |
 | `email_already_exists` | 409 | Email 已被使用 |
+| `account_state_conflict` | 409 | 帳號尚未完成首次啟用、尚未設定密碼或目前狀態不允許操作 |
 | `active_admin_required` | 409 | 管理員移交或停用會造成無啟用管理員 |
+| `employee_number_already_exists` | 409 | 指導老師員工編號已被使用 |
+| `advisor_state_conflict` | 409 | 指導老師目前狀態不允許操作 |
 | `active_director_conflict` | 409 | 主任設定發生衝突 |
+| `active_director_required` | 409 | 必須先指定新主任才能停用目前主任 |
 | `internal_error` | 500 | 未預期錯誤 |
 
 第二版啟用點數異動 API 時，再加入 `point_change_request_status_conflict` 等對應錯誤碼。
