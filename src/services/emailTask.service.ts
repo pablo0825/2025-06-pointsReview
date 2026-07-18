@@ -61,13 +61,19 @@ function isPlainObject(value: object): value is Record<string, unknown> {
 function isSensitivePayloadKey(key: string): boolean {
   const normalized = key.replace(/[_-]/g, "").toLowerCase();
 
+  if (
+    /(hash|secret|credential|csrf|session|smtp|apikey|privatekey|authorization)/.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+
   if (normalized.endsWith("url")) {
     return false;
   }
 
-  return /(password|token|hash|secret|credential|csrf|session|smtp)/.test(
-    normalized,
-  );
+  return /(password|token)/.test(normalized);
 }
 
 function normalizeJsonValue(value: unknown, path: string): JsonValue {
