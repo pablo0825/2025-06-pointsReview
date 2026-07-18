@@ -140,6 +140,13 @@ email-delivery-failed:email-task-500
 
 以下為第一版 email worker 與 retry 的建議方案，實作前可逐項確認。
 
+### Provider 介面與實作階段邊界
+
+- Service 與 worker 只依賴 `EmailProvider` interface，不直接呼叫 Gmail、SMTP、SendGrid 或其他特定服務。不同服務以 adapter 將統一的寄送輸入與錯誤分類轉換成各 provider API；更換 provider 時不修改 queue、claim 或 retry 核心流程。
+- Phase 4.2 使用 fake renderer 與 fake provider 驗證寄送成功、可重試失敗及永久失敗，不需要外部網路或正式 credential。實際 provider、寄件者與 reply-to 確認後，再新增對應 production adapter。
+- Phase 4.2 實作可單次呼叫的 worker function、`pending -> processing -> sent` 與有限重試狀態轉換，不在 server 啟動時掛入常駐排程。
+- `email_delivery_failed` 永久失敗通知、stale `processing` task maintenance，以及 worker 啟動、停止與健康狀態整合留在 Phase 10。Phase 4.2 仍須將達上限或不可重試的原任務正確標記為 `failed`，不得直接改變申請狀態。
+
 1. Worker claim 策略
 
    Worker 從 `email_tasks` claim `status = 'pending'` 且 `scheduled_at <= NOW()` 的任務，將狀態改為 `processing` 後再寄送。Claim 必須避免多個 worker 同時處理同一筆任務。
@@ -166,7 +173,7 @@ email-delivery-failed:email-task-500
 
 6. Stale processing maintenance
 
-   對長時間停留在 `processing` 的任務，需有 maintenance job 依安全規則重排或標記 failed，避免 worker crash 後任務永久卡住。
+   對長時間停留在 `processing` 的任務，需有 maintenance job 依安全規則重排或標記 failed，避免 worker crash 後任務永久卡住；此維運能力依實作計畫留在 Phase 10。
 
 ## 建立任務時機
 

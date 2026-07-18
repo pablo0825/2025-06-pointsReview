@@ -18,11 +18,13 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - `email_tasks` 保存收件人、模板名稱、模板資料、排程時間、成功時間、嘗試次數與最近一次錯誤。
 - 寄送失敗使用有限次數重試；第一版預設 `max_attempts = 5`。
 - Worker 使用 `FOR UPDATE SKIP LOCKED` claim pending tasks。
+- Service 與 worker 依賴 `EmailProvider` interface；Phase 4.2 使用 fake provider 測試，實際服務以 adapter 接入，不修改 queue 與 retry 核心流程。
+- Phase 4.2 完成單次 worker、正常寄送與有限重試；永久失敗通知、stale processing maintenance 與正式 worker lifecycle 留在 Phase 10。
 - 老師簽核提醒第一版排程為期限前 `72` 小時、`24` 小時與 `4` 小時。
 - 補件提醒第一版排程為期限前 `24` 小時。
-- 寄送永久失敗時建立 `email_delivery_failed` 通知，並避免失敗通知無限遞迴。
+- 第一版在 Phase 10 補上寄送永久失敗時建立 `email_delivery_failed` 通知，並避免失敗通知無限遞迴。
 - Email 寄送失敗本身不應直接讓申請作廢。
-- Email task 管理查詢與系統內手動重寄延後到第二版；第一版仍需完成自動有限重試、永久失敗狀態與失敗通知。
+- Email task 管理查詢與系統內手動重寄延後到第二版；Phase 4.2 完成自動有限重試與永久失敗狀態，第一版 Phase 10 再完成失敗通知與 worker 維運整合。
 - `advisor_confirmation_expires_at` 是指導老師簽核最後期限；提醒信必須在期限前寄送，逾期後不再自動寄送簽核連結。
 
 仍需實作時確認：
