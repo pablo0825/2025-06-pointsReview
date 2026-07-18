@@ -20,7 +20,7 @@ Email Queue 與通知排程初版已整理於 [Email Queue 與通知排程](emai
 - Worker 使用 `FOR UPDATE SKIP LOCKED` claim pending tasks。
 - Service 與 worker 依賴 `EmailProvider` interface；Phase 4.2 使用 fake provider 測試，實際服務以 adapter 接入，不修改 queue 與 retry 核心流程。
 - Phase 4.2 完成單次 worker、正常寄送與有限重試；永久失敗通知、stale processing maintenance 與正式 worker lifecycle 留在 Phase 10。
-- 相同 `event_key` 與完整建立內容一致時採冪等成功，內容不一致時視為程式錯誤且不覆蓋既有 task。
+- 相同 `event_key` 只比較不可變業務欄位；內容一致時採冪等成功，內容不一致時視為程式錯誤且不覆蓋既有 task。可變的 delivery 狀態不納入比較。
 - 成功寄送保留 `attempt_count` 並清除 `last_error`；無法辨識的 provider 錯誤預設可重試。
 - 單次 worker 預設最多處理 `10` 筆，每次只 claim 並完成一筆後才處理下一筆。
 - 老師簽核提醒第一版排程為期限前 `72` 小時、`24` 小時與 `4` 小時。

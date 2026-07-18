@@ -146,7 +146,7 @@ email-delivery-failed:email-task-500
 - Phase 4.2 使用 fake renderer 與 fake provider 驗證寄送成功、可重試失敗及永久失敗，不需要外部網路或正式 credential。實際 provider、寄件者與 reply-to 確認後，再新增對應 production adapter。
 - Phase 4.2 實作可單次呼叫的 worker function、`pending -> processing -> sent` 與有限重試狀態轉換，不在 server 啟動時掛入常駐排程。
 - `email_delivery_failed` 永久失敗通知、stale `processing` task maintenance，以及 worker 啟動、停止與健康狀態整合留在 Phase 10。Phase 4.2 仍須將達上限或不可重試的原任務正確標記為 `failed`，不得直接改變申請狀態。
-- 相同 `event_key` 與完整 task 建立內容一致時採冪等成功並回傳既有 task；若同一 key 對應不同收件人、模板、payload、申請關聯、排程或重試上限，視為程式錯誤且不得覆蓋原 task。
+- 相同 `event_key` 會比較收件人、模板、payload、申請關聯與重試上限等不可變業務欄位；內容一致時採冪等成功並回傳既有 task，內容不一致時視為程式錯誤且不得覆蓋原 task。`scheduled_at`、status、嘗試次數與錯誤等可變 delivery 狀態不納入比較。
 - 成功寄送時保留既有 `attempt_count` 並清除 `last_error`。Renderer／payload 錯誤與 provider 明確永久錯誤不可重試；timeout、rate limit、network、provider 5xx 與無法辨識的 provider 錯誤預設可重試。
 - 單次 worker 預設最多處理 `10` 筆，每次只 claim 一筆並完成寄送與狀態更新後才 claim 下一筆，避免一次 claim 多筆後 process 中斷造成大量 task 卡在 `processing`。
 
