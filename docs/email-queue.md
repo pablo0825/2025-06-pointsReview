@@ -60,13 +60,13 @@ processing -> failed
 
 `template_payload` 使用 `JSONB` 保存模板資料。Payload 不應保存密碼、原始 token hash 或其他不需要出現在信件中的敏感資料。
 
-### Auth Email Payload 待確認方案
+### Auth Email Payload
 
-以下為 account activation 與 password reset email task payload 的建議方案，實作前可逐項確認。
+第一版 account activation 與 password reset email task 採用以下方案。
 
 1. Payload 保存完整 URL
 
-   第一版建議由建立 email task 的 Service 組好完整 URL，worker 只負責依 `template_name` render 與寄送，不再重新推導前端路徑。
+   由建立 email task 的 Service 使用 `FRONTEND_URL` 組好完整 URL，worker 只負責依 `template_name` render 與寄送，不再重新推導前端路徑。
 
 2. Account activation payload
 
@@ -99,6 +99,10 @@ processing -> failed
 5. Event key
 
    Account activation 重寄與 password reset 允許再次建立新任務，`event_key` 必須包含時間戳或 token version，避免與舊任務衝突。
+
+6. Provider 邊界
+
+   Phase 4.3 完成 template mapping、URL、payload 與 Email task 建立，並使用 Phase 4.2 的可注入 fake provider 驗證流程。正式 Email provider 的服務選型與 worker 維運整合留在 Phase 10。
 
 ## Event Key 規則
 

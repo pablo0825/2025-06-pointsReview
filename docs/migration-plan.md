@@ -187,7 +187,7 @@ Seed 分為必要 seed 與環境 seed。
 建議使用維運指令建立初始管理員：
 
 ```text
-npm run admin:create -- admin@example.com
+npm run admin:create -- admin@example.com "系統管理員"
 ```
 
 此指令應：
@@ -195,8 +195,9 @@ npm run admin:create -- admin@example.com
 - 驗證目前不存在啟用中的管理員，或要求明確的維運確認。
 - 建立 `users.role = 'admin'` 的帳號。
 - 產生帳號啟用 token，資料庫只保存 token hash。
-- 寄送啟用連結，或在開發環境輸出一次性啟用連結。
+- 建立 `account_activation` Email task，由 worker 寄送啟用連結；指令不得輸出原始 token 或啟用連結。
 - 建立 `maintenance.admin_created` 通用稽核紀錄。
+- 加上 `--resend` 時，只為同一個尚未完成 activation 的既有 admin 重新產生 token 與 Email task。
 
 ## 初始點數規則 Seed
 

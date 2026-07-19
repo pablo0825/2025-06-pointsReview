@@ -30,19 +30,19 @@
 初始管理員：
 
 - 第一版不在 schema migration 中寫入正式管理員帳號。
-- 初始管理員由伺服器維運指令建立，例如 `npm run admin:create -- admin@example.com`。
+- 初始管理員由伺服器維運指令建立，例如 `npm run admin:create -- admin@example.com "系統管理員"`。
 - 指令建立 `users.role = 'admin'` 的帳號、產生帳號啟用 token，資料庫只保存 token hash，並寄送啟用信。
 - 若系統目前沒有啟用中的管理員，初始管理員完成 Email 啟用與密碼設定後，可將 `is_active` 設為 `TRUE`。
 - 建立初始管理員時必須寫入 `maintenance.admin_created` 通用稽核紀錄。
 
-初始管理員 CLI 待確認方案：
+初始管理員 CLI 方案：
 
 1. 指令名稱
 
    第一版建議使用：
 
    ```text
-   npm run admin:create -- admin@example.com
+   npm run admin:create -- admin@example.com "系統管理員"
    ```
 
 2. 指令行為
@@ -63,7 +63,7 @@
 
 6. 重複執行
 
-   若 email 已存在，指令應回報穩定錯誤，不直接覆蓋既有帳號。是否允許 `--resend` 另行討論。
+   若 email 已存在，指令應回報穩定錯誤，不直接覆蓋既有帳號。指令可加上 `--resend`，但只允許為同一個尚未完成 activation 的既有 admin 產生新 token 與 Email task；已啟用帳號、非 admin 帳號或不存在的帳號均不得使用此參數。
 
 7. Audit log
 

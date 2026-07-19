@@ -276,6 +276,8 @@ Reviewer query 分開定義：
 
 ## 後台操作 Schema
 
+Phase 4.3 使用共用 `passwordSchema` 驗證密碼為字串且長度介於 `12` 至 `128` 字元；常見弱密碼與 Email local part 規則由 Service 層的 `PasswordPolicy` 驗證。`POST /admin/users` 的 role schema 只接受 `admin`、`reviewer`；`advisor` 必須使用 `POST /admin/advisors` 的巢狀 user/advisor schema 建立。
+
 後台審核與規則管理也應使用 Zod 驗證 request 格式：
 
 | 操作 | Zod 驗證重點 | Service 驗證重點 |

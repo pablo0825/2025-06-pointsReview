@@ -519,7 +519,7 @@ Request：
 
 ```json
 {
-  "password": "new-password"
+  "password": "new-password-2026"
 }
 ```
 
@@ -549,7 +549,7 @@ Request：
 
 ```json
 {
-  "password": "new-password"
+  "password": "new-password-2026"
 }
 ```
 
@@ -864,6 +864,8 @@ Response 使用共用分頁格式，列表項目包含 `id`、`displayName`、`e
   "role": "reviewer"
 }
 ```
+
+`role` 只允許 `admin`、`reviewer`。指導老師帳號不得由此 endpoint 單獨建立，必須使用 `POST /admin/advisors`，在同一個 Transaction 中建立 `users` 與 `advisors` 關聯資料。
 
 `PATCH /admin/users/:userId` request：
 
@@ -1346,6 +1348,7 @@ Cache-Control: no-store
 | `application_version_conflict` | 409 | 使用者確認的版本不是目前版本 |
 | `advisor_confirmation_expired` | 409 | 指導老師簽核已逾期 |
 | `revision_token_invalid` | 409 | 補件 token 無效、過期或已使用 |
+| `account_token_invalid` | 409 | Activation 或 password reset token 格式錯誤、無效、過期或已使用 |
 | `point_rule_period_overlap` | 409 | 點數規則有效期間重疊 |
 | `participant_rule_period_overlap` | 409 | 申請人數規則有效期間重疊 |
 | `application_instruction_period_overlap` | 409 | 同一申請說明區塊有效期間重疊 |

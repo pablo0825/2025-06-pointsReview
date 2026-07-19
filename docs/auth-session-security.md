@@ -112,14 +112,17 @@ Authentication Middleware 每次驗證都必須檢查：
 
 密碼重設 API 不應揭露 Email 是否存在；對外回應統一顯示「若帳號存在，系統會寄送重設信」。
 
+只有已完成首次 activation 且已有密碼的帳號才建立 password reset token 與 Email task。尚未完成 activation 的帳號應由管理員重寄啟用信。已停用但曾完成 activation 的帳號仍可重設密碼，但重設成功後維持停用，不得藉此重新啟用帳號。公開 password reset request 無論 Email 是否存在或帳號狀態是否符合，均回傳相同成功 response。
+
 ## 密碼規則
 
 第一版建議：
 
 - 長度至少 `12` 字元。
+- 長度最多 `128` 字元，避免無限制輸入消耗密碼雜湊資源。
 - 不強制要求大小寫、數字、符號組合，避免使用者建立可預測密碼。
-- 禁止常見弱密碼，例如 `password123`。
-- 不允許與 Email local part 完全相同。
+- 使用程式內固定 denylist 禁止常見弱密碼，例如 `password123`；比對時不區分大小寫。
+- 不允許與 normalize 後 Email local part 完全相同；比對時不區分大小寫。
 
 密碼雜湊使用 Argon2id。第一版參數：
 
@@ -308,6 +311,14 @@ Redis 只保存 rate limit counter、window 到期時間與必要的鎖定狀態
 5. Token 使用後立即失效
 
    `AccountActivationService.activate` 與 `PasswordResetService.resetPassword` 必須在同一個 Transaction 中清除 token hash，避免同一連結重複使用。
+
+6. Token 無效錯誤
+
+   Activation / password reset token 格式錯誤、查無資料、過期或已使用時，統一回傳 `409 account_token_invalid`，不對外區分失敗原因。此錯誤碼與申請補件使用的 `revision_token_invalid` 分開。
+
+7. Phase 4.3 rate limit 邊界
+
+   Phase 4.3 完成 token 與帳號狀態安全控制；Redis-backed activation / password reset rate limit 依第一版實作計畫集中於 Phase 9 完成。
 
 ### Session Cleanup Job 待確認方案
 
