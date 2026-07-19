@@ -101,6 +101,31 @@ describe.sequential("Phase 4.3 public account lifecycle API", () => {
     expect(reused.body.code).toBe("account_token_invalid");
   });
 
+  it("allows only one concurrent activation to consume a token", async () => {
+    const token = "D".repeat(43);
+    await createPendingAccount({
+      email: "concurrent@phase43.test",
+      token,
+    });
+    const app = createApp();
+
+    const responses = await Promise.all([
+      request(app)
+        .post(`/auth/activation/${token}`)
+        .send({ password: NEW_PASSWORD }),
+      request(app)
+        .post(`/auth/activation/${token}`)
+        .send({ password: NEW_PASSWORD }),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([
+      200, 409,
+    ]);
+    expect(
+      responses.find((response) => response.status === 409)?.body.code,
+    ).toBe("account_token_invalid");
+  });
+
   it("returns one account token error for malformed and expired tokens", async () => {
     const expiredToken = "B".repeat(43);
     await createPendingAccount({
@@ -139,7 +164,9 @@ describe.sequential("Phase 4.3 public account lifecycle API", () => {
     const candidate = await pool.query<{
       activated_at: Date;
       is_active: boolean;
-    }>("SELECT activated_at, is_active FROM users WHERE id = $1", [candidateId]);
+    }>("SELECT activated_at, is_active FROM users WHERE id = $1", [
+      candidateId,
+    ]);
     expect(candidate.rows[0].activated_at).toBeInstanceOf(Date);
     expect(candidate.rows[0].is_active).toBe(false);
   });
@@ -220,5 +247,32 @@ describe.sequential("Phase 4.3 public account lifecycle API", () => {
       .send({ password: "another-new-password" });
     expect(reused.status).toBe(409);
     expect(reused.body.code).toBe("account_token_invalid");
+  });
+
+  it("does not reactivate a disabled account after password reset", async () => {
+    const user = await createAuthTestUser({
+      email: "disabled@phase43.test",
+      passwordHash: oldPasswordHash,
+      role: "reviewer",
+      isActive: false,
+    });
+    const app = createApp();
+    await request(app)
+      .post("/auth/password-reset/request")
+      .send({ email: user.email });
+    const token = await getLatestResetToken();
+
+    expect(
+      (
+        await request(app)
+          .post(`/auth/password-reset/${token}`)
+          .send({ password: NEW_PASSWORD })
+      ).status,
+    ).toBe(200);
+    const state = await pool.query<{ is_active: boolean }>(
+      "SELECT is_active FROM users WHERE id = $1",
+      [user.id],
+    );
+    expect(state.rows[0].is_active).toBe(false);
   });
 });
