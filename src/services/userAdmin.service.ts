@@ -32,7 +32,7 @@ export async function getUserDetail(userId: string) {
 }
 
 export async function createUser(
-  input: CreateAdminUserInput,
+  input: Omit<CreateAdminUserInput, "role"> & { role: "admin" | "reviewer" },
   actor: AuditActorContext,
 ) {
   return withTransaction(async (client) => {

@@ -1,7 +1,4 @@
-import {
-  hashAccountToken,
-  isValidAccountToken,
-} from "../auth/accountToken";
+import { hashAccountToken, isValidAccountToken } from "../auth/accountToken";
 import { hashPassword } from "../auth/password";
 import { PasswordPolicy } from "../auth/passwordPolicy";
 import { pool } from "../db/pool";
@@ -9,6 +6,7 @@ import { withTransaction } from "../db/transaction";
 import { ApiError } from "../errors/apiError";
 import { SessionRepository } from "../repositories/session.repository";
 import { UserRepository } from "../repositories/user.repository";
+import { passwordSchema } from "../schemas/password.schema";
 import { AccountEmailTaskService } from "./accountEmailTask.service";
 import { AuditLogService } from "./auditLog.service";
 
@@ -46,6 +44,8 @@ export async function resetPassword(
   password: string,
   context: PasswordResetRequestContext,
 ): Promise<void> {
+  passwordSchema.parse(password);
+
   if (!isValidAccountToken(token)) {
     throw createInvalidTokenError();
   }
@@ -101,4 +101,3 @@ export async function resetPassword(
 }
 
 export const PasswordResetService = { requestReset, resetPassword };
-

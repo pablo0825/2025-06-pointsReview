@@ -1,7 +1,4 @@
-import {
-  hashAccountToken,
-  isValidAccountToken,
-} from "../auth/accountToken";
+import { hashAccountToken, isValidAccountToken } from "../auth/accountToken";
 import { hashPassword } from "../auth/password";
 import { PasswordPolicy } from "../auth/passwordPolicy";
 import { pool } from "../db/pool";
@@ -9,6 +6,7 @@ import { withTransaction } from "../db/transaction";
 import { ApiError } from "../errors/apiError";
 import { createApiErrorFromPostgresError } from "../errors/postgresError";
 import { UserRepository } from "../repositories/user.repository";
+import { passwordSchema } from "../schemas/password.schema";
 import { AuditLogService } from "./auditLog.service";
 
 interface ActivationRequestContext {
@@ -29,6 +27,8 @@ export async function activate(
   password: string,
   context: ActivationRequestContext,
 ): Promise<void> {
+  passwordSchema.parse(password);
+
   if (!isValidAccountToken(token)) {
     throw createInvalidTokenError();
   }
@@ -82,4 +82,3 @@ export async function activate(
 }
 
 export const AccountActivationService = { activate };
-
