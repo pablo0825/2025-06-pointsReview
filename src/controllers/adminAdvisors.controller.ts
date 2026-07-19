@@ -4,6 +4,7 @@ import { toAdminAdvisorResponse } from "../mappers/adminAdvisor.mapper";
 import type {
   AdminAdvisorListQuery,
   AdvisorActionBody,
+  CreateAdminAdvisorBody,
   UpdateAdminAdvisorBody,
 } from "../schemas/adminAdvisor.schema";
 import { AdvisorAdminService } from "../services/advisorAdmin.service";
@@ -41,6 +42,26 @@ export async function listAdvisors(req: Request, res: Response): Promise<void> {
       totalPages: Math.ceil(result.totalItems / query.pageSize),
     },
   });
+}
+
+export async function createAdvisor(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const body = req.body as CreateAdminAdvisorBody;
+  const advisor = await AdvisorAdminService.createAdvisor(
+    {
+      displayName: body.user.displayName,
+      email: body.user.email,
+      employeeNumber: body.advisor.employeeNumber,
+      name: body.advisor.name,
+      titleCode: body.advisor.titleCode,
+      department: body.advisor.department,
+      isDirector: body.advisor.isDirector,
+    },
+    getAuditActor(req),
+  );
+  res.status(201).json({ data: toAdminAdvisorResponse(advisor) });
 }
 
 export async function updateAdvisor(

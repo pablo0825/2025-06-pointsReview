@@ -7,9 +7,12 @@ import {
 } from "../errors/postgresError";
 import {
   AdvisorAdminRepository,
+  type CreateAdvisorInput,
   type ListAdvisorsInput,
   type UpdateAdvisorInput,
 } from "../repositories/advisorAdmin.repository";
+import { UserAdminRepository } from "../repositories/userAdmin.repository";
+import { AccountEmailTaskService } from "./accountEmailTask.service";
 import { AuditLogService, type AuditActorContext } from "./auditLog.service";
 
 const advisorConstraintMappings: ConstraintErrorMappings = {
@@ -34,6 +37,57 @@ function mapAdvisorConstraintError(error: unknown): never {
 
 export async function listAdvisors(input: ListAdvisorsInput) {
   return AdvisorAdminRepository.list(pool, input);
+}
+
+export interface CreateAdvisorAccountInput
+  extends Omit<CreateAdvisorInput, "userId"> {
+  displayName: string;
+  email: string;
+}
+
+export async function createAdvisor(
+  input: CreateAdvisorAccountInput,
+  actor: AuditActorContext,
+) {
+  return withTransaction(async (client) => {
+    try {
+      const user = await UserAdminRepository.createInactive(client, {
+        displayName: input.displayName,
+        email: input.email,
+        role: "advisor",
+      });
+      const advisor = await AdvisorAdminRepository.create(client, {
+        userId: user.id,
+        employeeNumber: input.employeeNumber,
+        name: input.name,
+        titleCode: input.titleCode,
+        department: input.department,
+        isDirector: input.isDirector,
+      });
+      await AccountEmailTaskService.createActivationTask(client, {
+        id: user.id,
+        displayName: user.display_name,
+        email: user.email,
+      });
+      await AuditLogService.record(client, {
+        ...actor,
+        action: "user.created",
+        resourceType: "user",
+        resourceId: user.id,
+        metadata: { role: "advisor" },
+      });
+      await AuditLogService.record(client, {
+        ...actor,
+        action: "advisor.created",
+        resourceType: "advisor",
+        resourceId: advisor.id,
+        metadata: { user_id: Number(user.id), is_director: input.isDirector },
+      });
+      return advisor;
+    } catch (error) {
+      return mapAdvisorConstraintError(error);
+    }
+  });
 }
 
 export async function updateAdvisor(
@@ -230,6 +284,7 @@ export async function assignDirector(
 
 export const AdvisorAdminService = {
   listAdvisors,
+  createAdvisor,
   updateAdvisor,
   activateAdvisor,
   deactivateAdvisor,

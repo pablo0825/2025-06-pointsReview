@@ -26,6 +26,12 @@ export interface UpdateUserInput {
   email?: string;
 }
 
+export interface CreateAdminUserInput {
+  displayName: string;
+  email: string;
+  role: Role;
+}
+
 const userSelect = `
   SELECT
     id::text,
@@ -124,6 +130,35 @@ export async function findByIdForUpdate(
   return result.rows[0] ?? null;
 }
 
+export async function createInactive(
+  client: DatabaseClient,
+  input: CreateAdminUserInput,
+): Promise<AdminUserRow> {
+  const result = await client.query<AdminUserRow>(
+    `INSERT INTO users (display_name, email, role)
+     VALUES ($1, $2, $3)
+     RETURNING
+       id::text, display_name, email, role, is_active, password_hash,
+       activated_at, created_at, updated_at`,
+    [input.displayName, input.email.trim().toLowerCase(), input.role],
+  );
+  return result.rows[0];
+}
+
+export async function findByIdsForUpdate(
+  client: DatabaseClient,
+  userIds: string[],
+): Promise<AdminUserRow[]> {
+  const result = await client.query<AdminUserRow>(
+    `${userSelect}
+     WHERE id = ANY($1::bigint[])
+     ORDER BY id
+     FOR UPDATE`,
+    [userIds],
+  );
+  return result.rows;
+}
+
 export async function update(
   client: DatabaseClient,
   userId: string,
@@ -184,6 +219,8 @@ export const UserAdminRepository = {
   list,
   findById,
   findByIdForUpdate,
+  createInactive,
+  findByIdsForUpdate,
   update,
   setActive,
 };

@@ -2,9 +2,13 @@ import express from "express";
 
 import {
   activateUser,
+  createUser,
   deactivateUser,
   getUserDetail,
   listUsers,
+  resendActivation,
+  sendPasswordReset,
+  transferAdmin,
   updateUser,
 } from "../controllers/adminUsers.controller";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
@@ -16,11 +20,22 @@ import {
   adminUserListQuerySchema,
   adminUserEmptyBodySchema,
   adminUserParamsSchema,
+  createAdminUserBodySchema,
   deactivateAdminUserBodySchema,
+  transferAdminBodySchema,
   updateAdminUserBodySchema,
 } from "../schemas/adminUser.schema";
 
 const router = express.Router();
+
+router.post(
+  "/",
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.create"),
+  validateRequest({ body: createAdminUserBodySchema }),
+  asyncHandler(createUser),
+);
 
 router.get(
   "/",
@@ -72,6 +87,42 @@ router.post(
     body: deactivateAdminUserBodySchema,
   }),
   asyncHandler(deactivateUser),
+);
+
+router.post(
+  "/:userId/resend-activation",
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.activation.resend"),
+  validateRequest({
+    params: adminUserParamsSchema,
+    body: adminUserEmptyBodySchema,
+  }),
+  asyncHandler(resendActivation),
+);
+
+router.post(
+  "/:userId/send-password-reset",
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.password_reset.send"),
+  validateRequest({
+    params: adminUserParamsSchema,
+    body: adminUserEmptyBodySchema,
+  }),
+  asyncHandler(sendPasswordReset),
+);
+
+router.post(
+  "/:userId/transfer-admin",
+  authenticateSession,
+  csrfProtection,
+  requirePermission("users.transfer_admin"),
+  validateRequest({
+    params: adminUserParamsSchema,
+    body: transferAdminBodySchema,
+  }),
+  asyncHandler(transferAdmin),
 );
 
 export default router;

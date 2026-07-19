@@ -30,6 +30,20 @@ export const updateAdminAdvisorBodySchema = z
 
 export const adminAdvisorEmptyBodySchema = z.object({}).strict().default({});
 
+export const createAdminAdvisorBodySchema = z.object({
+  user: z.object({
+    displayName: z.string().trim().min(1).max(100),
+    email: z.string().trim().email().max(320).toLowerCase(),
+  }),
+  advisor: z.object({
+    employeeNumber: z.string().trim().min(1).max(50),
+    name: z.string().trim().min(1).max(100),
+    titleCode: z.number().int().min(1).max(7),
+    department: z.string().trim().min(1).max(100),
+    isDirector: z.boolean().default(false),
+  }),
+});
+
 export const advisorActionBodySchema = z
   .object({
     reason: z.string().trim().min(1).max(500).optional(),
@@ -37,6 +51,9 @@ export const advisorActionBodySchema = z
   .default({});
 
 export type AdminAdvisorListQuery = z.infer<typeof adminAdvisorListQuerySchema>;
+export type CreateAdminAdvisorBody = z.infer<
+  typeof createAdminAdvisorBodySchema
+>;
 export type UpdateAdminAdvisorBody = z.infer<
   typeof updateAdminAdvisorBodySchema
 >;

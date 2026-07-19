@@ -31,6 +31,15 @@ export interface UpdateAdvisorInput {
   department?: string;
 }
 
+export interface CreateAdvisorInput {
+  userId: string;
+  employeeNumber: string;
+  name: string;
+  titleCode: number;
+  department: string;
+  isDirector: boolean;
+}
+
 const advisorSelect = `
   SELECT
     a.id::text,
@@ -176,6 +185,31 @@ export async function update(
   );
 }
 
+export async function create(
+  client: DatabaseClient,
+  input: CreateAdvisorInput,
+): Promise<AdminAdvisorRow> {
+  const created = await client.query<{ id: string }>(
+    `INSERT INTO advisors (
+       user_id, employee_number, name, title_code, department, is_director
+     ) VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id::text`,
+    [
+      input.userId,
+      input.employeeNumber,
+      input.name,
+      input.titleCode,
+      input.department,
+      input.isDirector,
+    ],
+  );
+  const advisor = await findById(client, created.rows[0].id);
+  if (!advisor) {
+    throw new Error("Created advisor could not be read back");
+  }
+  return advisor;
+}
+
 export async function setActive(
   client: DatabaseClient,
   advisorId: string,
@@ -203,6 +237,7 @@ export const AdvisorAdminRepository = {
   findById,
   findByIdForUpdate,
   findActiveDirectorForUpdate,
+  create,
   update,
   setActive,
   setDirector,

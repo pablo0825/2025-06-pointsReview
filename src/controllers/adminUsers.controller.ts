@@ -6,7 +6,9 @@ import {
 } from "../mappers/adminUser.mapper";
 import type {
   AdminUserListQuery,
+  CreateAdminUserBody,
   DeactivateAdminUserBody,
+  TransferAdminBody,
   UpdateAdminUserBody,
 } from "../schemas/adminUser.schema";
 import { UserAdminService } from "../services/userAdmin.service";
@@ -52,6 +54,43 @@ export async function getUserDetail(
 ): Promise<void> {
   const user = await UserAdminService.getUserDetail(getUserId(req));
   res.status(200).json({ data: toAdminUserResponse(user) });
+}
+
+export async function createUser(req: Request, res: Response): Promise<void> {
+  const user = await UserAdminService.createUser(
+    req.body as CreateAdminUserBody,
+    getAuditActor(req),
+  );
+  res.status(201).json({ data: toAdminUserResponse(user) });
+}
+
+export async function resendActivation(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await UserAdminService.resendActivation(getUserId(req), getAuditActor(req));
+  res.status(200).json({ data: { ok: true } });
+}
+
+export async function sendPasswordReset(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await UserAdminService.sendPasswordReset(getUserId(req), getAuditActor(req));
+  res.status(200).json({ data: { ok: true } });
+}
+
+export async function transferAdmin(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const body = req.body as TransferAdminBody;
+  await UserAdminService.transferAdmin(
+    getUserId(req),
+    body.reason,
+    getAuditActor(req),
+  );
+  res.status(200).json({ data: { ok: true } });
 }
 
 export async function updateUser(req: Request, res: Response): Promise<void> {

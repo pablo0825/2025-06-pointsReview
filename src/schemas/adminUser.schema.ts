@@ -28,6 +28,16 @@ export const updateAdminUserBodySchema = z
 
 export const adminUserEmptyBodySchema = z.object({}).strict().default({});
 
+export const createAdminUserBodySchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+  email: z.string().trim().email().max(320).toLowerCase(),
+  role: z.enum(["admin", "reviewer"]),
+});
+
+export const transferAdminBodySchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 export const deactivateAdminUserBodySchema = z
   .object({
     reason: z.string().trim().min(1).max(500).optional(),
@@ -35,6 +45,8 @@ export const deactivateAdminUserBodySchema = z
   .default({});
 
 export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>;
+export type CreateAdminUserBody = z.infer<typeof createAdminUserBodySchema>;
+export type TransferAdminBody = z.infer<typeof transferAdminBodySchema>;
 export type UpdateAdminUserBody = z.infer<typeof updateAdminUserBodySchema>;
 export type DeactivateAdminUserBody = z.infer<
   typeof deactivateAdminUserBodySchema

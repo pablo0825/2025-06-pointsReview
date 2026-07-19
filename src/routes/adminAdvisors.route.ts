@@ -3,6 +3,7 @@ import express from "express";
 import {
   activateAdvisor,
   assignDirector,
+  createAdvisor,
   deactivateAdvisor,
   listAdvisors,
   updateAdvisor,
@@ -17,10 +18,20 @@ import {
   adminAdvisorEmptyBodySchema,
   adminAdvisorParamsSchema,
   advisorActionBodySchema,
+  createAdminAdvisorBodySchema,
   updateAdminAdvisorBodySchema,
 } from "../schemas/adminAdvisor.schema";
 
 const router = express.Router();
+
+router.post(
+  "/",
+  authenticateSession,
+  csrfProtection,
+  requirePermission("advisors.create"),
+  validateRequest({ body: createAdminAdvisorBodySchema }),
+  asyncHandler(createAdvisor),
+);
 
 router.get(
   "/",
