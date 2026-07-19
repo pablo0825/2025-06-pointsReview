@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 
 import { AuthService } from "../services/auth.service";
+import { AccountActivationService } from "../services/accountActivation.service";
+import { PasswordResetService } from "../services/passwordReset.service";
 import { getClientIp } from "../utils/clientIp";
 
 function getRequiredRequestIp(req: Request): string {
@@ -56,4 +58,42 @@ export async function getCsrfToken(req: Request, res: Response): Promise<void> {
   const csrfToken = await AuthService.rotateCsrfToken(auth.sessionId);
 
   res.status(200).json({ data: { csrfToken } });
+}
+
+export async function activateAccount(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await AccountActivationService.activate(
+    String(req.params.token),
+    req.body.password,
+    {
+      ipAddress: getRequiredRequestIp(req),
+      userAgent: getRequiredUserAgent(req),
+    },
+  );
+  res.status(200).json({ data: { ok: true } });
+}
+
+export async function requestPasswordReset(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await PasswordResetService.requestReset(req.body.email);
+  res.status(200).json({ data: { ok: true } });
+}
+
+export async function resetPassword(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await PasswordResetService.resetPassword(
+    String(req.params.token),
+    req.body.password,
+    {
+      ipAddress: getRequiredRequestIp(req),
+      userAgent: getRequiredUserAgent(req),
+    },
+  );
+  res.status(200).json({ data: { ok: true } });
 }

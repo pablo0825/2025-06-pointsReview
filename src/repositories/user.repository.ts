@@ -68,6 +68,21 @@ export async function findByEmail(
   return result.rows[0] ?? null;
 }
 
+export async function findByEmailForUpdate(
+  client: DatabaseClient,
+  email: string,
+): Promise<UserRow | null> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const result = await client.query<UserRow>(
+    `${baseUserSelect}
+     WHERE email = $1
+     FOR UPDATE`,
+    [normalizedEmail],
+  );
+
+  return result.rows[0] ?? null;
+}
+
 export async function findByActivationTokenHashForUpdate(
   client: DatabaseClient,
   tokenHash: Buffer,
@@ -124,6 +139,56 @@ export async function setPasswordResetToken(
   );
 }
 
+export async function lockActiveAdminDecision(
+  client: DatabaseClient,
+): Promise<void> {
+  await client.query("SELECT pg_advisory_xact_lock($1)", [710043]);
+}
+
+export async function hasActiveAdmin(
+  client: DatabaseClient,
+): Promise<boolean> {
+  const result = await client.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM users WHERE role = 'admin' AND is_active = TRUE
+     ) AS exists`,
+  );
+  return result.rows[0].exists;
+}
+
+export async function completeActivation(
+  client: DatabaseClient,
+  userId: string,
+  passwordHash: string,
+  isActive: boolean,
+): Promise<void> {
+  await client.query(
+    `UPDATE users
+     SET password_hash = $2,
+         activated_at = NOW(),
+         is_active = $3,
+         activation_token_hash = NULL,
+         activation_token_expires_at = NULL
+     WHERE id = $1`,
+    [userId, passwordHash, isActive],
+  );
+}
+
+export async function completePasswordReset(
+  client: DatabaseClient,
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE users
+     SET password_hash = $2,
+         password_reset_token_hash = NULL,
+         password_reset_token_expires_at = NULL
+     WHERE id = $1`,
+    [userId, passwordHash],
+  );
+}
+
 export async function updateLastLoginAt(
   client: DatabaseClient,
   userId: string,
@@ -156,9 +221,14 @@ export async function updateLastLoginAt(
 export const UserRepository = {
   findById,
   findByEmail,
+  findByEmailForUpdate,
   findByActivationTokenHashForUpdate,
   findByPasswordResetTokenHashForUpdate,
   setActivationToken,
   setPasswordResetToken,
+  lockActiveAdminDecision,
+  hasActiveAdmin,
+  completeActivation,
+  completePasswordReset,
   updateLastLoginAt,
 };

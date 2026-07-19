@@ -42,6 +42,7 @@ function assertUsingTestDatabase(): void {
 
 export async function resetAuthTestData(): Promise<void> {
   assertUsingTestDatabase();
+  await pool.query("DELETE FROM email_tasks");
   await pool.query("DELETE FROM audit_logs");
   await pool.query("DELETE FROM user_sessions");
   await pool.query("DELETE FROM advisors");

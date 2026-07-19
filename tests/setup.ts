@@ -1,5 +1,6 @@
 process.env.NODE_ENV ??= "test";
 process.env.ENABLE_LEGACY_MONGO ??= "false";
+process.env.FRONTEND_URL ??= "https://frontend.phase4.test";
 
 if (process.env.TEST_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
