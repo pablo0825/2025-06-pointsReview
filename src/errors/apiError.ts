@@ -9,6 +9,7 @@ export type ApiErrorCode =
   | "application_version_conflict"
   | "advisor_confirmation_expired"
   | "revision_token_invalid"
+  | "account_token_invalid"
   | "point_change_request_status_conflict"
   | "point_rule_period_overlap"
   | "certificate_points_limit_exceeded"

@@ -68,6 +68,62 @@ export async function findByEmail(
   return result.rows[0] ?? null;
 }
 
+export async function findByActivationTokenHashForUpdate(
+  client: DatabaseClient,
+  tokenHash: Buffer,
+): Promise<UserRow | null> {
+  const result = await client.query<UserRow>(
+    `${baseUserSelect}
+     WHERE activation_token_hash = $1
+     FOR UPDATE`,
+    [tokenHash],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findByPasswordResetTokenHashForUpdate(
+  client: DatabaseClient,
+  tokenHash: Buffer,
+): Promise<UserRow | null> {
+  const result = await client.query<UserRow>(
+    `${baseUserSelect}
+     WHERE password_reset_token_hash = $1
+     FOR UPDATE`,
+    [tokenHash],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function setActivationToken(
+  client: DatabaseClient,
+  userId: string,
+  tokenHash: Buffer,
+  expiresAt: Date,
+): Promise<void> {
+  await client.query(
+    `UPDATE users
+     SET activation_token_hash = $2, activation_token_expires_at = $3
+     WHERE id = $1`,
+    [userId, tokenHash, expiresAt],
+  );
+}
+
+export async function setPasswordResetToken(
+  client: DatabaseClient,
+  userId: string,
+  tokenHash: Buffer,
+  expiresAt: Date,
+): Promise<void> {
+  await client.query(
+    `UPDATE users
+     SET password_reset_token_hash = $2, password_reset_token_expires_at = $3
+     WHERE id = $1`,
+    [userId, tokenHash, expiresAt],
+  );
+}
+
 export async function updateLastLoginAt(
   client: DatabaseClient,
   userId: string,
@@ -100,5 +156,9 @@ export async function updateLastLoginAt(
 export const UserRepository = {
   findById,
   findByEmail,
+  findByActivationTokenHashForUpdate,
+  findByPasswordResetTokenHashForUpdate,
+  setActivationToken,
+  setPasswordResetToken,
   updateLastLoginAt,
 };
