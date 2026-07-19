@@ -1,13 +1,14 @@
 import type { DatabaseClient } from "../db/types";
 
 export interface CreateAuditLogInput {
-  actorUserId: string;
+  actorType: "user" | "system" | "maintenance";
+  actorUserId: string | null;
   action: string;
   resourceType: string;
   resourceId: string | null;
   metadata: Record<string, unknown>;
-  ipAddress: string;
-  userAgent: string;
+  ipAddress: string | null;
+  userAgent: string | null;
 }
 
 export async function insert(
@@ -26,9 +27,10 @@ export async function insert(
         ip_address,
         user_agent
       )
-      VALUES ('user', $1, $2, $3, $4, $5::jsonb, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
     `,
     [
+      input.actorType,
       input.actorUserId,
       input.action,
       input.resourceType,

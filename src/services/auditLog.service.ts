@@ -42,7 +42,38 @@ export async function record(
     unknown
   >;
 
-  await AuditLogRepository.insert(client, { ...input, metadata });
+  await AuditLogRepository.insert(client, {
+    ...input,
+    actorType: "user",
+    metadata,
+  });
 }
 
-export const AuditLogService = { record };
+export interface RecordMaintenanceAuditLogInput {
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export async function recordMaintenance(
+  client: DatabaseClient,
+  input: RecordMaintenanceAuditLogInput,
+): Promise<void> {
+  const metadata = sanitizeMetadataValue(input.metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
+  await AuditLogRepository.insert(client, {
+    actorType: "maintenance",
+    actorUserId: null,
+    action: input.action,
+    resourceType: input.resourceType,
+    resourceId: input.resourceId,
+    metadata,
+    ipAddress: null,
+    userAgent: null,
+  });
+}
+
+export const AuditLogService = { record, recordMaintenance };

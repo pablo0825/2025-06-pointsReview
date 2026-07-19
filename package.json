@@ -13,7 +13,8 @@
     "migrate:down": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate down -m migrations",
     "migrate:status": "node -r dotenv/config scripts/migrate-status.js",
     "seed:development": "node -r dotenv/config scripts/run-seed.js development",
-    "seed:test": "node -r dotenv/config scripts/run-seed.js test"
+    "seed:test": "node -r dotenv/config scripts/run-seed.js test",
+    "admin:create": "npm run build --silent && node dist/maintenance/adminCreate.cli.js"
   },
   "keywords": [],
   "author": "",
