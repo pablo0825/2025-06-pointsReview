@@ -83,6 +83,7 @@ CREATE TABLE users (
 - `activated_at`、`last_login_at`、Token Hash 與 Token 到期時間允許為 `NULL`。
 - Email 寫入前必須移除前後空白並轉為小寫。
 - `users` 必須掛上共用 `set_updated_at()` Trigger。
+- Password reset token 的建立條件由 Service 控制：只為 `activated_at IS NOT NULL` 且 `password_hash IS NOT NULL` 的帳號建立；重設密碼不得修改 `is_active`。
 
 索引：
 

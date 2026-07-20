@@ -543,6 +543,8 @@ Response 不揭露帳號是否存在：
 }
 ```
 
+公開 request 無論 Email 是否存在或帳號狀態是否符合密碼重設條件，均回傳相同 response。內部只有 `activated_at IS NOT NULL` 且 `password_hash IS NOT NULL` 的帳號才建立 password reset token 與 `password_reset` Email task；尚未完成首次啟用的帳號應由管理員重寄啟用信。
+
 ### `POST /auth/password-reset/:token`
 
 Request：
@@ -552,6 +554,8 @@ Request：
   "password": "new-password-2026"
 }
 ```
+
+密碼重設成功後只更新 `password_hash`、清除 password reset token、撤銷既有 session，不修改 `is_active`。因此已停用但曾完成 activation 的帳號可重設密碼，但重設完成後仍維持停用。
 
 ## 指導老師 API
 

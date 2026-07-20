@@ -101,18 +101,24 @@ Authentication Middleware 每次驗證都必須檢查：
 密碼重設流程：
 
 1. 使用者或管理員要求寄送密碼重設信。
-2. 後端產生高 entropy reset token。
-3. 資料庫只保存 SHA-256 token hash 與 `password_reset_token_expires_at`。
-4. Email 寄出原始 token 連結。
-5. 使用者設定新密碼。
-6. 成功後更新 `password_hash`，清除 reset token hash 與到期時間。
-7. 撤銷該使用者既有 session。
+2. Service 檢查帳號是否符合密碼重設條件。
+3. 符合條件時，後端產生高 entropy reset token。
+4. 資料庫只保存 SHA-256 token hash 與 `password_reset_token_expires_at`。
+5. Email 寄出原始 token 連結。
+6. 使用者設定新密碼。
+7. 成功後更新 `password_hash`，清除 reset token hash 與到期時間。
+8. 撤銷該使用者既有 session。
 
 密碼重設 token 有效期限建議為 `30` 分鐘。
 
 密碼重設 API 不應揭露 Email 是否存在；對外回應統一顯示「若帳號存在，系統會寄送重設信」。
 
-只有已完成首次 activation 且已有密碼的帳號才建立 password reset token 與 Email task。尚未完成 activation 的帳號應由管理員重寄啟用信。已停用但曾完成 activation 的帳號仍可重設密碼，但重設成功後維持停用，不得藉此重新啟用帳號。公開 password reset request 無論 Email 是否存在或帳號狀態是否符合，均回傳相同成功 response。
+密碼重設條件：
+
+- `activated_at IS NULL` 或 `password_hash IS NULL` 代表尚未完成首次啟用或尚未設定密碼，不建立 password reset token，也不建立 password reset Email task。此類帳號應由管理員重寄啟用信。
+- `activated_at IS NOT NULL` 且 `password_hash IS NOT NULL` 的帳號可建立 password reset token。
+- `is_active = FALSE` 但曾完成 activation 的帳號仍可重設密碼；重設成功只更新密碼與撤銷既有 session，必須維持 `is_active = FALSE`，不得藉由密碼重設重新啟用帳號。
+- 公開 password reset request 無論 Email 是否存在、帳號是否尚未啟用、是否停用或是否符合重設條件，均回傳相同 success response。
 
 ## 密碼規則
 

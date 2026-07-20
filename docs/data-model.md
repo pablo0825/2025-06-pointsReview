@@ -77,6 +77,8 @@ erDiagram
 - `activated_at IS NOT NULL AND is_active = TRUE`：已完成啟用，目前可以登入。
 - `activated_at IS NOT NULL AND is_active = FALSE`：曾經完成啟用，但後來被管理員停用。
 
+Password reset token 只應由 Service 為 `activated_at IS NOT NULL` 且 `password_hash IS NOT NULL` 的帳號建立。尚未完成首次啟用的帳號應重寄 activation token；已停用但曾完成啟用的帳號可以重設密碼，但重設後仍維持停用。
+
 ## 使用者 Session `user_sessions`
 
 保存 server-side session 狀態。瀏覽器 cookie 只保存原始 session token，資料庫只保存 SHA-256 token hash，讓系統可以集中撤銷登入狀態。CSRF token 綁定同一筆 session，資料庫只保存 CSRF token hash。

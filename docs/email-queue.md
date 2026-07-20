@@ -203,6 +203,8 @@ email-delivery-failed:email-task-500
 | 第二版：管理員拒絕點數異動申請 | `point_change_request_rejected` |
 | Email 永久失敗 | `email_delivery_failed` |
 
+使用者要求密碼重設時，公開 API 固定回傳成功；但只有已完成首次 activation 且已有 `password_hash` 的帳號才會實際建立 `password_reset` Email task。尚未完成 activation 的帳號應由管理員重寄 `account_activation`。已停用但曾完成 activation 的帳號可建立 password reset task，但重設成功後不得重新啟用帳號。
+
 ## 提醒排程
 
 ### 指導老師簽核提醒

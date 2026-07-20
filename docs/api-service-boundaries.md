@@ -95,6 +95,12 @@ PostgreSQL constraint 是資料正確性的最後防線，API 不直接回傳 SQ
 
 登入、session、cookie 與 CSRF 規則請參考 [登入、Session 與安全設計](auth-session-security.md)。
 
+Password reset Service 責任：
+
+- `PasswordResetService.requestReset` 對外不得透露 Email 是否存在或帳號狀態；內部只有已完成首次 activation 且已有 `password_hash` 的帳號才建立 password reset token 與 Email task。
+- 尚未完成首次 activation 的帳號不走 password reset，應由管理員重寄啟用信。
+- `PasswordResetService.resetPassword` 只負責驗證 token、更新密碼、清除 token 並撤銷既有 session，不修改 `is_active`。已停用但曾完成 activation 的帳號重設密碼後仍維持停用。
+
 ## 指導老師 API
 
 | Method | Path                                                              | 權限                                       | 用途                               | Service                                       | Transaction |
