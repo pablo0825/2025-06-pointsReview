@@ -557,6 +557,8 @@ Request：
 
 密碼重設成功後只更新 `password_hash`、清除 password reset token、撤銷既有 session，不修改 `is_active`。因此已停用但曾完成 activation 的帳號可重設密碼，但重設完成後仍維持停用。
 
+第一版只驗證密碼長度與 `PasswordPolicy`，不檢查新密碼是否與目前密碼相同。若第二版啟用相同密碼檢查，API 應以 `422 validation_failed` 回應。
+
 ## 指導老師 API
 
 ### `GET /advisor/applications/pending`

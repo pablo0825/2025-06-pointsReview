@@ -49,6 +49,17 @@ POST /admin/email-tasks/:emailTaskId/retry
 
 手動重寄必須建立新 task，不覆蓋原 failed task，並保留 `retryOfEmailTaskId` 或等效來源資訊及 Audit log。
 
+## 密碼政策強化
+
+第一版 password reset 允許新密碼與目前密碼相同；第二版可評估加入較嚴格的密碼重用檢查：
+
+- Password reset 時禁止新密碼與目前密碼完全相同。
+- 不建立 password history 表，不保存歷史密碼雜湊。
+- 實作時使用既有 `users.password_hash` 搭配 Argon2 verify 判斷新密碼是否等於目前密碼。
+- 若新密碼與目前密碼相同，回傳 `422 validation_failed`。
+
+此項目不阻塞第一版。若未來有更高資安需求，再另行評估最近 N 次密碼不可重用、password history 保存期限與資料保留政策。
+
 ## 其他候選功能
 
 - 年度、班級、申請類型與點數來源報表。

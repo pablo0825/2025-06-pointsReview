@@ -100,6 +100,7 @@ Password reset Service 責任：
 - `PasswordResetService.requestReset` 對外不得透露 Email 是否存在或帳號狀態；內部只有已完成首次 activation 且已有 `password_hash` 的帳號才建立 password reset token 與 Email task。
 - 尚未完成首次 activation 的帳號不走 password reset，應由管理員重寄啟用信。
 - `PasswordResetService.resetPassword` 只負責驗證 token、更新密碼、清除 token 並撤銷既有 session，不修改 `is_active`。已停用但曾完成 activation 的帳號重設密碼後仍維持停用。
+- 第一版 `PasswordResetService.resetPassword` 不負責判斷新密碼是否與目前密碼相同；密碼重用限制列入第二版候選功能。
 
 ## 指導老師 API
 

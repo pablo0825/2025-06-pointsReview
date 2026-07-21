@@ -119,6 +119,7 @@ Authentication Middleware 每次驗證都必須檢查：
 - `activated_at IS NOT NULL` 且 `password_hash IS NOT NULL` 的帳號可建立 password reset token。
 - `is_active = FALSE` 但曾完成 activation 的帳號仍可重設密碼；重設成功只更新密碼與撤銷既有 session，必須維持 `is_active = FALSE`，不得藉由密碼重設重新啟用帳號。
 - 公開 password reset request 無論 Email 是否存在、帳號是否尚未啟用、是否停用或是否符合重設條件，均回傳相同 success response。
+- 第一版 password reset 不檢查新密碼是否與目前密碼相同；第二版若需要加強密碼重用限制，可使用既有 `password_hash` 搭配 Argon2 verify 判斷，不建立 password history 表。
 
 ## 密碼規則
 
