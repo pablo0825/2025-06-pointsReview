@@ -13,6 +13,7 @@ import adminPointRulesRoute from "./routes/adminPointRules.route";
 import adminParticipantRulesRoute from "./routes/adminParticipantRules.route";
 import adminApplicationInstructionsRoute from "./routes/adminApplicationInstructions.route";
 import publicRoute from "./routes/public.route";
+import advisorApplicationsRoute from "./routes/advisorApplications.route";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 
 interface LegacyMongoRoutes {
@@ -55,6 +56,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/admin/application-participant-rules", adminParticipantRulesRoute);
   app.use("/admin/application-instructions", adminApplicationInstructionsRoute);
   app.use("/public", publicRoute);
+  app.use("/advisor/applications", advisorApplicationsRoute);
 
   app.use((_req, _res, next) => {
     next(createError(404, "找不到路由"));

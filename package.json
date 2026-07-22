@@ -53,6 +53,7 @@
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "http-errors": "^2.0.0",
+    "image-size": "^2.0.2",
     "magic-bytes.js": "^1.13.0",
     "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
