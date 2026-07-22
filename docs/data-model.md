@@ -899,7 +899,7 @@ UNIQUE (id, application_id);
 - `invalidated_at` 與 `invalidated_reason` 必須同時為 `NULL` 或同時非 `NULL`，由 `CHECK` 保證。
 - 簽名板固定輸出 PNG，後端必須驗證實際檔案格式，並使用 `.png` 儲存。
 - 簽名圖片屬於敏感資料，不應以公開靜態網址提供，必須透過權限驗證後存取。
-- 第一版簽名檔案最大 `1 MB`，建議最大尺寸 `1600 x 800` pixels。
+- 第一版簽名檔案最大 `1 MB`、最大尺寸 `1600 x 800` pixels，兩者皆為後端硬限制。
 - `signature_storage_key` 由後端產生，不接受前端指定，且 API response 不回傳 `signature_storage_key`。
 
 每個版本最多只能有一筆有效簽名，透過 partial unique index 限制：

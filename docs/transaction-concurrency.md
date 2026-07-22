@@ -113,7 +113,9 @@ Transaction 內步驟：
 7. 建立 `advisor_signatures`。
 8. 建立 `advisor_approved` 審核紀錄。
 9. 將申請狀態改為 `under_review`。
-10. 建立承辦人待審通知 `email_tasks`（若第一版需要）。
+10. 取消該申請版本仍為 `pending` 的老師簽核通知與提醒。
+
+第一版不建立承辦人待審通知 `email_tasks`；收件人與指派規則明確後再加入。
 
 鎖定策略：
 
@@ -135,11 +137,13 @@ Transaction 內步驟：
 
 1. 鎖定 `point_applications`。
 2. 驗證狀態仍為 `pending_advisor`。
-3. 驗證登入使用者對應此申請的 `advisor_id`。
-4. 建立 `advisor_rejected` 審核紀錄。
-5. 將申請狀態改為 `rejected`。
-6. 寫入 `closed_at`。
-7. 建立拒絕通知 `email_tasks`。
+3. 驗證 `advisor_confirmation_expires_at > NOW()`。
+4. 驗證登入使用者對應此申請的 `advisor_id`。
+5. 建立 `advisor_rejected` 審核紀錄。
+6. 將申請狀態改為 `rejected`。
+7. 寫入 `closed_at`。
+8. 取消該申請版本仍為 `pending` 的老師簽核通知與提醒。
+9. 建立拒絕通知 `email_tasks`。
 
 老師拒絕不建立 `advisor_signatures`。
 

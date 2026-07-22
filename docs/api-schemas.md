@@ -617,6 +617,8 @@ Response：
 
 Content type 使用 `multipart/form-data`，簽名檔案欄位為 `signature`。
 
+`signature` 固定為 PNG，最大 `1 MB`，圖片尺寸最大 `1600 x 800` pixels；任一限制不符時拒絕簽核。前端不可指定 storage key。
+
 Request `payload`：
 
 ```json
@@ -637,6 +639,8 @@ Response：
 ```
 
 ### `POST /advisor/applications/pending/:publicId/reject`
+
+拒絕與同意都只能在 `advisor_confirmation_expires_at` 前操作；逾期回傳 `409 advisor_confirmation_expired`。
 
 Request：
 

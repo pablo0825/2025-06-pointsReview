@@ -514,38 +514,48 @@ Phase 5 開發可沿用 Phase 4.1 seed 帳號；正式端到端通知依賴 Phas
 
 目標：完成老師登入後簽核或拒絕申請的流程。
 
-- [ ] 實作指導老師申請 API：
-  - [ ] `GET /advisor/applications/pending`
-  - [ ] `GET /advisor/applications/pending/:publicId`
-  - [ ] `POST /advisor/applications/pending/:publicId/approve`
-  - [ ] `POST /advisor/applications/pending/:publicId/reject`
-  - [ ] `GET /advisor/applications/history`
-  - [ ] `GET /advisor/applications/history/:publicId`
-- [ ] 建立 `AdvisorApplicationService` 查詢能力：
-  - [ ] pending 只查目前 `status = 'pending_advisor'` 且 `advisor_id` 對應登入老師的申請。
-  - [ ] history 只查登入老師已處理、目前不在 `pending_advisor` 的申請。
-  - [ ] 補件重新提交後，申請重新出現在 pending；舊簽核與舊版本仍可從詳情歷史查詢。
-- [ ] 實作簽名檔案驗證與 storage。
-- [ ] 實作 advisor approve：
-  - [ ] lock `point_applications`
-  - [ ] 驗證狀態與期限
-  - [ ] 驗證目前登入老師符合 `advisor_id`
-  - [ ] 建立 `advisor_signatures`
-  - [ ] 建立 `advisor_approved`
-  - [ ] 狀態改為 `under_review`
-- [ ] 實作 advisor reject：
-  - [ ] reason 必填
-  - [ ] 建立 `advisor_rejected`
-  - [ ] 狀態改為 `rejected`
-  - [ ] 寫入 `closed_at`
-  - [ ] 建立拒絕通知
-- [ ] 補指導老師流程測試：
-  - [ ] 只能讀取與處理自己的申請。
-  - [ ] Pending / history 列表的狀態分類、分頁與排序正確，且同一申請不會同時出現在兩者。
-  - [ ] History detail 可讀取自己已處理申請的版本與簽核歷史，不能讀取其他老師申請。
-  - [ ] 狀態、簽核期限、重複簽名與 reason 驗證。
-  - [ ] 簽名成功／拒絕的狀態、review action、signature、email task 與檔案 rollback。
-- [ ] 每支 Phase 6 API 完成 route、Controller、Zod params/query/body、Authentication、Permission、response mapper 與 API test，不以只有 Service 完成視為交付。
+- [x] 實作指導老師申請 API：
+  - [x] `GET /advisor/applications/pending`
+  - [x] `GET /advisor/applications/pending/:publicId`
+  - [x] `POST /advisor/applications/pending/:publicId/approve`
+  - [x] `POST /advisor/applications/pending/:publicId/reject`
+  - [x] `GET /advisor/applications/history`
+  - [x] `GET /advisor/applications/history/:publicId`
+- [x] 建立 `AdvisorApplicationService` 查詢能力：
+  - [x] pending 只查目前 `status = 'pending_advisor'` 且 `advisor_id` 對應登入老師的申請。
+  - [x] history 只查登入老師已處理、目前不在 `pending_advisor` 的申請。
+  - [x] 補件重新提交後，申請重新出現在 pending；舊簽核與舊版本仍可從詳情歷史查詢。
+- [x] 實作簽名檔案驗證與 storage。
+- [x] 實作 advisor approve：
+  - [x] lock `point_applications`
+  - [x] 驗證狀態與期限
+  - [x] 驗證目前登入老師符合 `advisor_id`
+  - [x] 建立 `advisor_signatures`
+  - [x] 建立 `advisor_approved`
+  - [x] 狀態改為 `under_review`
+- [x] 實作 advisor reject：
+  - [x] reason 必填
+  - [x] 建立 `advisor_rejected`
+  - [x] 狀態改為 `rejected`
+  - [x] 寫入 `closed_at`
+  - [x] 建立拒絕通知
+- [x] 補指導老師流程測試：
+  - [x] 只能讀取與處理自己的申請。
+  - [x] Pending / history 列表的狀態分類、分頁與排序正確，且同一申請不會同時出現在兩者。
+  - [x] History detail 可讀取自己已處理申請的版本與簽核歷史，不能讀取其他老師申請。
+  - [x] 狀態、簽核期限、重複簽名與 reason 驗證。
+  - [x] 簽名成功／拒絕的狀態、review action、signature、email task 與檔案 rollback。
+- [x] 每支 Phase 6 API 完成 route、Controller、Zod params/query/body、Authentication、Permission、response mapper 與 API test，不以只有 Service 完成視為交付。
+
+### Phase 6 實作決策
+
+- 前端簽名板使用 `signature_pad` 或對應框架 wrapper；送出前以 `isEmpty()` 阻擋空白簽名，再將 canvas 轉為 PNG Blob。
+- 同意 API 使用 `multipart/form-data`，`payload` 保存 `confirmVersionNumber`，`signature` 保存 PNG 檔案。
+- 後端將 PNG、`1 MB`、`1600 x 800` pixels 視為硬限制；後端只驗證檔案格式與尺寸，簽署身分證據由登入 session、版本、時間、IP 與 User-Agent 組成。
+- 老師同意或拒絕後，取消該申請版本仍為 `pending` 的簽核通知與提醒；已寄送任務保留。
+- 老師拒絕也必須在 `advisor_confirmation_expires_at` 前完成，逾期固定回傳 `409 advisor_confirmation_expired`。
+- 第一版老師同意後不建立承辦人通知 Email；待承辦人收件人、指派規則與模板明確後再加入。
+- Pending 與 history detail 只回傳附件、簽名 metadata，不回傳私有 storage key；檔案讀取 API 仍屬 Phase 10。
 
 完成條件：
 
