@@ -197,4 +197,19 @@ export async function createPendingTask(
   );
 }
 
-export const EmailTaskService = { createPendingTask };
+export async function cancelPendingAdvisorNotifications(
+  client: DatabaseClient,
+  applicationId: string,
+  versionNumber: number,
+): Promise<number> {
+  return EmailTaskRepository.cancelPendingAdvisorNotifications(
+    client,
+    applicationId,
+    versionNumber,
+  );
+}
+
+export const EmailTaskService = {
+  createPendingTask,
+  cancelPendingAdvisorNotifications,
+};

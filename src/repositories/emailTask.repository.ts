@@ -208,6 +208,28 @@ export async function markFailed(
   return result.rows[0] ?? null;
 }
 
+export async function cancelPendingAdvisorNotifications(
+  client: DatabaseClient,
+  applicationId: string,
+  versionNumber: number,
+): Promise<number> {
+  const eventKeys = [
+    `advisor-sign-request:application-${applicationId}:version-${versionNumber}`,
+    `advisor-sign-reminder-1:application-${applicationId}:version-${versionNumber}`,
+    `advisor-sign-reminder-2:application-${applicationId}:version-${versionNumber}`,
+    `advisor-sign-reminder-3:application-${applicationId}:version-${versionNumber}`,
+  ];
+  const result = await client.query(
+    `UPDATE email_tasks
+     SET status = 'cancelled'
+     WHERE event_key = ANY($1::text[])
+       AND status = 'pending'`,
+    [eventKeys],
+  );
+
+  return result.rowCount ?? 0;
+}
+
 export const EmailTaskRepository = {
   createPending,
   findByEventKey,
@@ -216,4 +238,5 @@ export const EmailTaskRepository = {
   markSent,
   rescheduleAfterFailure,
   markFailed,
+  cancelPendingAdvisorNotifications,
 };

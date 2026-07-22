@@ -206,6 +206,29 @@ describe.sequential("Phase 5 public application submission", () => {
         details: "1",
       });
 
+      const emailTasks = await pool.query<{
+        event_key: string;
+        payload: Record<string, unknown>;
+      }>(
+        "SELECT event_key, payload FROM email_tasks WHERE application_id = $1 ORDER BY event_key",
+        [applicationId],
+      );
+      expect(emailTasks.rows.map((task) => task.event_key)).toEqual([
+        `advisor-sign-reminder-1:application-${applicationId}:version-1`,
+        `advisor-sign-reminder-2:application-${applicationId}:version-1`,
+        `advisor-sign-reminder-3:application-${applicationId}:version-1`,
+        `advisor-sign-request:application-${applicationId}:version-1`,
+      ]);
+      expect(emailTasks.rows[0].payload).toMatchObject({
+        advisorDisplayName: "送件測試老師",
+        applicationPublicId: response.body.data.publicId,
+        applicationType: payload.applicationType,
+      });
+      expect(emailTasks.rows[0].payload).toHaveProperty(
+        "advisorConfirmationExpiresAt",
+      );
+      expect(emailTasks.rows[0].payload).toHaveProperty("advisorReviewUrl");
+
       const version = await pool.query<{
         application_snapshot: Record<string, unknown>;
       }>(

@@ -195,4 +195,43 @@ describe.sequential("Phase 4.2 EmailTaskRepository", () => {
       last_error: "recipient_rejected",
     });
   });
+
+  it("cancels only pending advisor notifications for the selected version", async () => {
+    for (const eventKey of [
+      "advisor-sign-request:application-10:version-2",
+      "advisor-sign-reminder-1:application-10:version-2",
+      "advisor-sign-reminder-2:application-10:version-2",
+      "advisor-sign-reminder-1:application-10:version-1",
+      "unrelated:application-10",
+    ]) {
+      await EmailTaskRepository.createPending(pool, createInput({ eventKey }));
+    }
+    const sent = await EmailTaskRepository.findByEventKey(
+      pool,
+      "advisor-sign-request:application-10:version-2",
+    );
+    await pool.query(
+      "UPDATE email_tasks SET status = 'sent', sent_at = NOW() WHERE id = $1",
+      [sent!.id],
+    );
+
+    await expect(
+      EmailTaskRepository.cancelPendingAdvisorNotifications(pool, "10", 2),
+    ).resolves.toBe(2);
+
+    const statuses = await pool.query<{ event_key: string; status: string }>(
+      "SELECT event_key, status FROM email_tasks ORDER BY event_key",
+    );
+    expect(
+      Object.fromEntries(
+        statuses.rows.map((row) => [row.event_key, row.status]),
+      ),
+    ).toMatchObject({
+      "advisor-sign-request:application-10:version-2": "sent",
+      "advisor-sign-reminder-1:application-10:version-2": "cancelled",
+      "advisor-sign-reminder-2:application-10:version-2": "cancelled",
+      "advisor-sign-reminder-1:application-10:version-1": "pending",
+      "unrelated:application-10": "pending",
+    });
+  });
 });

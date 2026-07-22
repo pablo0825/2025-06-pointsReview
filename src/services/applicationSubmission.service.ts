@@ -154,15 +154,14 @@ async function createAdvisorEmailTasks(
   expiresAt: Date,
 ) {
   const payload = {
-    advisorName: advisor.name,
-    applicantName: input.applicant.name,
+    advisorDisplayName: advisor.name,
     applicationPublicId: application.public_id,
     applicationType: input.applicationType,
-    confirmationExpiresAt: expiresAt.toISOString(),
-    actionUrl: `${env.frontendUrl}/advisor/applications/pending/${application.public_id}`,
+    advisorConfirmationExpiresAt: expiresAt.toISOString(),
+    advisorReviewUrl: `${env.frontendUrl}/advisor/applications/pending/${application.public_id}`,
   };
   await EmailTaskService.createPendingTask(client, {
-    eventKey: `application:${application.public_id}:advisor-sign-request`,
+    eventKey: `advisor-sign-request:application-${application.id}:version-1`,
     applicationId: application.id,
     recipientEmail: advisor.email,
     templateName: "advisor_sign_request",
@@ -173,7 +172,7 @@ async function createAdvisorEmailTasks(
     const scheduledAt = new Date(expiresAt.getTime() - hours * 60 * 60 * 1000);
     if (scheduledAt <= submittedAt) continue;
     await EmailTaskService.createPendingTask(client, {
-      eventKey: `application:${application.public_id}:advisor-sign-reminder-${index + 1}`,
+      eventKey: `advisor-sign-reminder-${index + 1}:application-${application.id}:version-1`,
       applicationId: application.id,
       recipientEmail: advisor.email,
       templateName: `advisor_sign_reminder_${index + 1}` as
