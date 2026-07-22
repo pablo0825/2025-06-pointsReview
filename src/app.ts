@@ -9,6 +9,10 @@ import path from "path";
 import authRoute from "./routes/auth.route";
 import adminAdvisorsRoute from "./routes/adminAdvisors.route";
 import adminUsersRoute from "./routes/adminUsers.route";
+import adminPointRulesRoute from "./routes/adminPointRules.route";
+import adminParticipantRulesRoute from "./routes/adminParticipantRules.route";
+import adminApplicationInstructionsRoute from "./routes/adminApplicationInstructions.route";
+import publicRoute from "./routes/public.route";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 
 interface LegacyMongoRoutes {
@@ -47,6 +51,10 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use("/auth", authRoute);
   app.use("/admin/advisors", adminAdvisorsRoute);
   app.use("/admin/users", adminUsersRoute);
+  app.use("/admin/point-rules", adminPointRulesRoute);
+  app.use("/admin/application-participant-rules", adminParticipantRulesRoute);
+  app.use("/admin/application-instructions", adminApplicationInstructionsRoute);
+  app.use("/public", publicRoute);
 
   app.use((_req, _res, next) => {
     next(createError(404, "找不到路由"));

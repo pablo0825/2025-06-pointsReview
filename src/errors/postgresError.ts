@@ -31,8 +31,8 @@ const defaultConstraintMappings: ConstraintErrorMappings = {
   },
   application_type_participant_rules_no_overlap: {
     statusCode: 409,
-    code: "point_rule_period_overlap",
-    message: "規則有效期間重疊。",
+    code: "participant_rule_period_overlap",
+    message: "申請人數規則有效期間重疊。",
   },
   competition_point_rules_no_overlap: {
     statusCode: 409,
@@ -53,6 +53,16 @@ const defaultConstraintMappings: ConstraintErrorMappings = {
     statusCode: 409,
     code: "point_rule_period_overlap",
     message: "規則有效期間重疊。",
+  },
+  application_instructions_section_no_overlap: {
+    statusCode: 409,
+    code: "application_instruction_period_overlap",
+    message: "申請說明有效期間重疊。",
+  },
+  application_instructions_section_version_unique: {
+    statusCode: 409,
+    code: "application_instruction_period_overlap",
+    message: "相同生效日的申請說明版本已存在。",
   },
 };
 
