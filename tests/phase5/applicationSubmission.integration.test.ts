@@ -238,6 +238,10 @@ describe.sequential("Phase 5 public application submission", () => {
       expect(version.rows[0].application_snapshot).not.toHaveProperty(
         "attachments",
       );
+      expect(version.rows[0].application_snapshot).toMatchObject({
+        applicationType: payload.applicationType,
+        requestedTotalPoints: application.rows[0].requested_total_points,
+      });
       const attachment = await pool.query<{ storage_key: string }>(
         "SELECT storage_key FROM application_attachments WHERE application_id = $1",
         [applicationId],

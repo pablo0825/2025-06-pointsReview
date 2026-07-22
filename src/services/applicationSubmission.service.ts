@@ -342,7 +342,11 @@ export async function submitApplication(
         );
       }
 
-      const { attachments: _attachments, ...snapshot } = input;
+      const { attachments: _attachments, ...submissionSnapshot } = input;
+      const snapshot = {
+        ...submissionSnapshot,
+        requestedTotalPoints,
+      };
       const versionId = await ApplicationSubmissionRepository.createVersion(
         client,
         application.id,
