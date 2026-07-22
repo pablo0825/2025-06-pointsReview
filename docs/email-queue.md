@@ -214,11 +214,14 @@ email-delivery-failed:email-task-500
 第一版建議：
 
 - 簽核通知：申請建立或補件重新提交後立即排程。
+- 簽核期限：預設為送件或補件重新提交後 `168` 小時，由 `ADVISOR_CONFIRMATION_TTL_HOURS` 設定。
 - 第一次提醒：期限前 `72` 小時。
 - 第二次提醒：期限前 `24` 小時。
 - 第三次提醒：期限前 `4` 小時。
 
 若提醒時間已經早於目前時間，不建立該提醒任務。所有提醒的 `scheduled_at` 必須早於 `advisor_confirmation_expires_at`。
+
+簽核通知與提醒 payload 包含 `advisorDisplayName`、`applicationPublicId`、`applicationType`、`advisorConfirmationExpiresAt` 與 `advisorReviewUrl`。連結使用 `{FRONTEND_URL}/advisor/applications/pending/{publicId}`；worker 不重新推導前端路徑。
 
 ### 申請人補件提醒
 

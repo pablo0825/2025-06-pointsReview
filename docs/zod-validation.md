@@ -158,7 +158,7 @@ ApplicationSubmissionService.submitApplication(payload)
 | `applicationType` | 必須是合法申請類型 |
 | `applicant.name` | 必填，去除前後空白後不可為空 |
 | `applicant.email` | 必填，合法 Email |
-| `applicant.phone` | 必填或可選依實作時表單定義；若填寫需符合電話格式與長度限制 |
+| `applicant.phone` | 必填；trim 後長度 `1..30`，只接受數字、空白、`+`、`-`、`(`、`)` |
 | `advisorId` | 必填正整數；是否存在由 Service 驗證 |
 | `participants` | 至少 1 人，技術上限例如 50 人；正式上下限由 Service 查 `application_type_participant_rules` |
 | `typeDetails` | 依 `applicationType` 使用不同 schema |

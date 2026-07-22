@@ -56,7 +56,7 @@
 - API Service 層負責驗證參與者點數並自動計算 `requested_total_points`。
 - 建立申請時保存 `competition_point_rule_id`，用來記錄該申請使用的歷史規則。
 - 規則調整時建立新的規則紀錄，不修改已被申請使用的舊規則。
-- 建議限制 `points >= 0`，並避免相同競賽等級與獎項存在時間重疊的有效規則。
+- 限制 `points > 0`，並避免相同競賽等級與獎項存在時間重疊的有效規則；參與者的申請點數必須大於 `0`，因此不可建立無法套用的零點競賽規則。
 
 資料庫負責保存規則與基本資料限制；API Service 層負責查詢規則、執行點數計算及業務驗證。
 
@@ -148,7 +148,7 @@ minimum_participants <= participants.length <= maximum_participants
 
 前端可依目前有效規則提供即時人數提示；Zod 只驗證至少一人與合理技術上限，避免 request 過大。最終可信驗證由 Service 在 Transaction 內查詢 `application_type_participant_rules` 後完成。資料庫不使用 Trigger 統計同一 `application_id` 底下的 `application_participants` 筆數。
 
-第一版提供管理端列表、建立新版本與提前停用 API。建立接續版本時，Service 必須在同一個 Transaction 中將目前規則的 `effective_to` 設為新規則的 `effective_from`，再建立新規則；若只停用而不接續，使用獨立停用 API。
+第一版提供管理端列表、建立新版本與提前停用 API。此接續版本行為適用於人數規則及四種點數規則：Service 必須在同一個 Transaction 中將目前開放中的同類規則 `effective_to` 設為新規則的 `effective_from`，再建立新規則；若只停用而不接續，使用獨立停用 API。已有未來版本或其他有界期間與新版本重疊時不自動改寫，回傳期間重疊錯誤。
 
 ## 申請說明內容 `application_instructions`
 

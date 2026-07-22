@@ -237,7 +237,7 @@ Query：
 
 ### `POST /public/applications`
 
-Content type 使用 `multipart/form-data`。JSON 欄位建議放在 `payload`，檔案欄位使用 `attachments[]`。
+Content type 使用 `multipart/form-data`。JSON 欄位放在 `payload`，檔案欄位使用 `attachments[{clientFileKey}]`。
 
 `payload`：
 
@@ -281,7 +281,7 @@ Content type 使用 `multipart/form-data`。JSON 欄位建議放在 `payload`，
 }
 ```
 
-`attachments[].clientFileKey` 用來對應 multipart 檔案欄位，由前端產生，後端不保存。
+`attachments[].clientFileKey` 用來對應 multipart 檔案欄位，由前端產生，後端不保存。例如 metadata 的 `clientFileKey = "file-1"` 對應 multipart 欄位 `attachments[file-1]`。同一 request 的 `clientFileKey` 不可重複，每個 metadata 必須剛好對應一個檔案，且不得有未被 metadata 引用的檔案。
 
 `typeDetails` 依 `applicationType` 使用 discriminated union。
 
@@ -1180,7 +1180,9 @@ Response：
 }
 ```
 
-已生效或已被申請引用的點數規則不可原地修改。建立新版本後，再以明確的 `applicationType` 與 `ruleId` 設定舊版本失效日期。
+已生效或已被申請引用的點數規則不可原地修改。建立接續版本時，`POST /admin/point-rules` 會在同一個 Transaction 將目前開放中的同類規則 `effectiveTo` 設為新規則的 `effectiveFrom`，再建立新規則。Deactivate endpoint 只用於沒有接續版本的單獨停用。
+
+規則列表與建立 response 使用 `{ data: ... }`。每筆資料包含 `id`、`applicationType`、對應類型的規則欄位、`effectiveFrom`、`effectiveTo`、`createdAt`、`updatedAt`；列表的 `data` 為陣列。
 
 ### Participant Rules
 
@@ -1207,6 +1209,8 @@ Response：
 
 `POST /admin/application-participant-rules/:ruleId/deactivate` 使用與點數規則相同的 `effectiveTo`、`reason` request 格式。既有申請保留送件時套用的規則結果，新規則只影響有效日起的新送件。
 
+建立接續人數規則時，Service 同樣在一個 Transaction 中結束目前開放版本並建立新版本。列表與建立 response 每筆包含 `id`、規則欄位、有效期間及 timestamps；列表的 `data` 為陣列。
+
 ### Application Instructions
 
 `GET /admin/application-instructions` 可使用 `applicationType`、`isVisible`、`includeExpired` 與共用分頁 query。
@@ -1229,6 +1233,8 @@ Response：
 `PATCH /admin/application-instructions/:instructionId` 接收上述可修改欄位的部分集合，但 body 至少要有一個欄位。尚未生效的說明可修改內容與有效期間；已生效的說明不原地改寫 `applicationType`、`sectionKey`、`title`、`content` 或有效期間，需建立新資料保留歷史。`displayOrder` 可獨立調整。
 
 `POST /admin/application-instructions/:instructionId/show` 與 `POST /admin/application-instructions/:instructionId/hide` body 可為空。顯示操作只改變 `isVisible`，公開 API 仍會檢查有效期間。
+
+申請說明管理列表使用共用分頁 response；建立與更新回傳完整單筆資料，包含 `id`、內容欄位、顯示狀態、有效期間及 timestamps。Show/hide 使用共用 `{ data: { ok: true } }` response。
 
 ### Audit Logs（第二版預留）
 
