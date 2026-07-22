@@ -458,51 +458,52 @@ Phase 5 開發可沿用 Phase 4.1 seed 帳號；正式端到端通知依賴 Phas
 - 人數、點數、必要附件、指導老師可選狀態與有效規則等業務輸入錯誤，統一回傳 `422 validation_failed` 與欄位路徑。
 - 競賽規則 `points` 必須大於 `0`；Phase 5 以 forward migration 收緊既有 constraint。
 - Phase 5 以 forward migration 補齊 participant rule 與 application instruction 的 Audit action/resource constraint。
+- 檔案內容辨識使用 `magic-bytes.js`，multipart parser 使用已修正已知上傳 DoS 弱點的 Multer 版本；不採用與目前 CommonJS runtime 不相容或仍有已知 malformed-file 弱點的舊版 `file-type`。
 
-- [ ] 建立 `PointRuleRepository`。
-- [ ] 建立 `ParticipantRuleRepository` 與有效人數規則查詢。
-- [ ] 建立 `ApplicationInstructionRepository`。
-- [ ] 建立四種點數規則查詢。
-- [ ] 建立公開基礎資料 API：
-  - [ ] `GET /public/advisors`
-  - [ ] `GET /public/application-instructions?applicationType=...&includeHistorical=...`
-- [ ] 實作管理端點數規則版本管理：
-  - [ ] `GET /admin/point-rules?applicationType=...`
-  - [ ] `POST /admin/point-rules`
-  - [ ] `POST /admin/point-rules/:applicationType/:ruleId/deactivate`
-- [ ] 實作管理端申請人數規則版本管理：
-  - [ ] `GET /admin/application-participant-rules`
-  - [ ] `POST /admin/application-participant-rules`
-  - [ ] `POST /admin/application-participant-rules/:ruleId/deactivate`
-- [ ] 實作輕量申請說明管理：
-  - [ ] `GET /admin/application-instructions`
-  - [ ] `POST /admin/application-instructions`
-  - [ ] `PATCH /admin/application-instructions/:instructionId`
-  - [ ] `POST /admin/application-instructions/:instructionId/show`
-  - [ ] `POST /admin/application-instructions/:instructionId/hide`
-  - [ ] 已生效內容不可原地改寫；建立新資料保留歷史，顯示狀態與排序依 API contract 管理。
-- [ ] 對規則與說明異動建立 `audit_logs`；第一版只寫入，不提供管理端 Audit log 查詢 API。
-- [ ] 建立建立申請 Zod discriminated union。
-- [ ] 建立 file validation 與 storage adapter。
-- [ ] 實作 `POST /public/applications`：
-  - [ ] 驗證申請人是參與者之一。
-  - [ ] 查詢首次送件適用規則。
-  - [ ] 計算各類型申請點數。
-  - [ ] 建立 `point_applications`。
-  - [ ] 建立 `application_participants`。
-  - [ ] 建立類型專屬資料。
-  - [ ] 建立 `application_versions` 第一版快照。
-  - [ ] 更新 `current_version_id`。
-  - [ ] 建立附件 metadata。
-  - [ ] 建立老師簽核通知與提醒 `email_tasks`。
-- [ ] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；Rate Limit 延後到 Phase 9。
-- [ ] 補規則與公開送件測試：
-  - [ ] 有效期間規則查詢、人數上下限與四類點數計算。
-  - [ ] 點數規則、人數規則與申請說明管理的權限、期間重疊、歷史版本保護與 audit log。
-  - [ ] 四類 Zod discriminated union 與跨欄位驗證。
-  - [ ] 送件成功建立主表、參與者、專屬資料、版本、附件與 email tasks。
-  - [ ] 任一步驟失敗時資料庫 rollback，已寫入的新檔案會清理。
-  - [ ] 檔案類型、大小、數量、storage key 與路徑穿越防護。
+- [x] 建立 `PointRuleRepository`。
+- [x] 建立 `ParticipantRuleRepository` 與有效人數規則查詢。
+- [x] 建立 `ApplicationInstructionRepository`。
+- [x] 建立四種點數規則查詢。
+- [x] 建立公開基礎資料 API：
+  - [x] `GET /public/advisors`
+  - [x] `GET /public/application-instructions?applicationType=...&includeHistorical=...`
+- [x] 實作管理端點數規則版本管理：
+  - [x] `GET /admin/point-rules?applicationType=...`
+  - [x] `POST /admin/point-rules`
+  - [x] `POST /admin/point-rules/:applicationType/:ruleId/deactivate`
+- [x] 實作管理端申請人數規則版本管理：
+  - [x] `GET /admin/application-participant-rules`
+  - [x] `POST /admin/application-participant-rules`
+  - [x] `POST /admin/application-participant-rules/:ruleId/deactivate`
+- [x] 實作輕量申請說明管理：
+  - [x] `GET /admin/application-instructions`
+  - [x] `POST /admin/application-instructions`
+  - [x] `PATCH /admin/application-instructions/:instructionId`
+  - [x] `POST /admin/application-instructions/:instructionId/show`
+  - [x] `POST /admin/application-instructions/:instructionId/hide`
+  - [x] 已生效內容不可原地改寫；建立新資料保留歷史，顯示狀態與排序依 API contract 管理。
+- [x] 對規則與說明異動建立 `audit_logs`；第一版只寫入，不提供管理端 Audit log 查詢 API。
+- [x] 建立建立申請 Zod discriminated union。
+- [x] 建立 file validation 與 storage adapter。
+- [x] 實作 `POST /public/applications`：
+  - [x] 驗證申請人是參與者之一。
+  - [x] 查詢首次送件適用規則。
+  - [x] 計算各類型申請點數。
+  - [x] 建立 `point_applications`。
+  - [x] 建立 `application_participants`。
+  - [x] 建立類型專屬資料。
+  - [x] 建立 `application_versions` 第一版快照。
+  - [x] 更新 `current_version_id`。
+  - [x] 建立附件 metadata。
+  - [x] 建立老師簽核通知與提醒 `email_tasks`。
+- [x] 對公開指導老師、申請說明與建立申請 API 套用輸入長度限制；Rate Limit 延後到 Phase 9。
+- [x] 補規則與公開送件測試：
+  - [x] 有效期間規則查詢、人數上下限與四類點數計算。
+  - [x] 點數規則、人數規則與申請說明管理的權限、期間重疊、歷史版本保護與 audit log。
+  - [x] 四類 Zod discriminated union 與跨欄位驗證。
+  - [x] 送件成功建立主表、參與者、專屬資料、版本、附件與 email tasks。
+  - [x] 任一步驟失敗時資料庫 rollback，已寫入的新檔案會清理。
+  - [x] 檔案類型、大小、數量、storage key 與路徑穿越防護。
 
 完成條件：
 
@@ -642,6 +643,8 @@ Phase 5 開發可沿用 Phase 4.1 seed 帳號；正式端到端通知依賴 Phas
 ## Phase 9：上線前安全收斂
 
 目標：在核心 API 與帳號生命週期已穩定後，集中補齊第一版正式上線需要的防暴力嘗試與公開 API 防濫用措施。Local development 可停用 Rate Limit 或使用較高上限；production 必須使用 Redis-backed store。
+
+- [ ] 逐項處理 production `npm audit` 既有依賴弱點並執行完整回歸；Phase 5 完成時剩餘項目來自 `body-parser`、`mongoose`、`morgan`、`nodemailer`、`on-headers`、`path-to-regexp`、`uuid`，不包含 Phase 5 使用的 `magic-bytes.js` 與 Multer。
 
 - [ ] 建立可重用 Rate Limit 基礎：
   - [ ] 定義 Redis key 命名、window、counter 與到期策略。
