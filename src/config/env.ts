@@ -70,4 +70,10 @@ export const env = {
   databaseUrl: getRequiredEnv("DATABASE_URL"),
   enableLegacyMongo: getBooleanEnv("ENABLE_LEGACY_MONGO", false),
   redisUrl: getOptionalEnv("REDIS_URL"),
+  frontendUrl: getOptionalEnv("FRONTEND_URL") ?? "http://localhost:3000",
+  privateFileStorageRoot: getOptionalEnv("PRIVATE_FILE_STORAGE_ROOT"),
+  advisorConfirmationTtlHours: getNumberEnv(
+    "ADVISOR_CONFIRMATION_TTL_HOURS",
+    168,
+  ),
 };

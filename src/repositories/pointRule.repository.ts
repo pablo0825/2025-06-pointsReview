@@ -190,10 +190,39 @@ export async function setEffectiveTo(
   );
 }
 
+export async function findEffective(
+  client: DatabaseClient,
+  applicationType: ApplicationType,
+  submittedAt: Date,
+  key: { competitionLevel?: string; award?: string; exhibitionType?: string },
+): Promise<PointRuleRow | null> {
+  const config = configs[applicationType];
+  const params: unknown[] = [submittedAt];
+  const clauses = [
+    "daterange(effective_from, effective_to, '[)') @> ($1::timestamptz AT TIME ZONE 'Asia/Taipei')::date",
+  ];
+  if (applicationType === "competition") {
+    params.push(key.competitionLevel, key.award);
+    clauses.push("competition_level = $2", "award = $3");
+  } else if (applicationType === "external_exhibition") {
+    params.push(key.exhibitionType);
+    clauses.push("exhibition_type = $2");
+  }
+  const result = await client.query<PointRuleRow>(
+    `SELECT *, id::text FROM ${config.table}
+     WHERE ${clauses.join(" AND ")}
+     LIMIT 1
+     FOR SHARE`,
+    params,
+  );
+  return result.rows[0] ?? null;
+}
+
 export const PointRuleRepository = {
   list,
   closeOpenEndedVersion,
   create,
   findByIdForUpdate,
   setEffectiveTo,
+  findEffective,
 };

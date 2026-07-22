@@ -21,5 +21,6 @@ coverage/
 .cache/
 
 /backend/storage/uploads/
+storage/private-files/
 
 .env

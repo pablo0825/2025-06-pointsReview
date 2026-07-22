@@ -107,10 +107,31 @@ export async function setEffectiveTo(
   );
 }
 
+export async function findEffective(
+  client: DatabaseClient,
+  applicationType: ApplicationType,
+  submittedAt: Date,
+): Promise<ParticipantRuleRow | null> {
+  const result = await client.query<ParticipantRuleRow>(
+    `SELECT id::text, application_type, minimum_participants,
+            maximum_participants, effective_from, effective_to,
+            created_at, updated_at
+     FROM application_type_participant_rules
+     WHERE application_type = $1
+       AND daterange(effective_from, effective_to, '[)')
+           @> ($2::timestamptz AT TIME ZONE 'Asia/Taipei')::date
+     LIMIT 1
+     FOR SHARE`,
+    [applicationType, submittedAt],
+  );
+  return result.rows[0] ?? null;
+}
+
 export const ParticipantRuleRepository = {
   list,
   closeOpenEndedVersion,
   create,
   findByIdForUpdate,
   setEffectiveTo,
+  findEffective,
 };
