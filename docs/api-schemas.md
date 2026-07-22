@@ -1230,6 +1230,8 @@ Response：
 }
 ```
 
+建立相同 `applicationType + sectionKey` 的接續版本時，Service 會在同一個 Transaction 將目前開放中且生效日較早的版本 `effectiveTo` 設為新版的 `effectiveFrom`，再建立新版。若新版仍與其他既有版本重疊，則回傳 `409 application_instruction_period_overlap`，不自動改寫其他歷史或未來版本。
+
 `PATCH /admin/application-instructions/:instructionId` 接收上述可修改欄位的部分集合，但 body 至少要有一個欄位。尚未生效的說明可修改內容與有效期間；已生效的說明不原地改寫 `applicationType`、`sectionKey`、`title`、`content` 或有效期間，需建立新資料保留歷史。`displayOrder` 可獨立調整。
 
 `POST /admin/application-instructions/:instructionId/show` 與 `POST /admin/application-instructions/:instructionId/hide` body 可為空。顯示操作只改變 `isVisible`，公開 API 仍會檢查有效期間。

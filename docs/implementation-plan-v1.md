@@ -449,6 +449,7 @@ Phase 5 開發可沿用 Phase 4.1 seed 帳號；正式端到端通知依賴 Phas
 ### Phase 5 實作決策
 
 - 建立接續規則版本時，Service 在同一個 Transaction 將目前開放中的同類規則 `effective_to` 設為新規則的 `effective_from`，再建立新規則；deactivate API 只用於沒有接續版本的單獨停用。
+- 建立相同 `application_type + section_key` 的接續申請說明時，Service 在同一個 Transaction 將目前開放中且生效日較早的版本 `effective_to` 設為新版的 `effective_from`，再建立新版；其他重疊的歷史或未來版本不自動改寫，由資料庫 constraint 拒絕。
 - `applicant.phone` 為必填，trim 後長度 `1..30`，接受數字、空白、`+`、`-`、括號等常見電話字元。
 - 指導老師簽核期限預設為送件後 `168` 小時，由 `ADVISOR_CONFIRMATION_TTL_HOURS` 設定；三次提醒固定排在期限前 `72`、`24`、`4` 小時。
 - 指導老師簽核 Email URL 使用 `{FRONTEND_URL}/advisor/applications/pending/{publicId}`。
